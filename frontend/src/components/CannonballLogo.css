@@ -1,0 +1,166 @@
+.cannonball-logo-wrapper {
+  display: inline-block;
+  perspective: 1000px;
+  perspective-origin: center center;
+}
+
+.cannonball-logo-container {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  transform-style: preserve-3d;
+  transform-origin: center center;
+}
+
+.cannonball-svg {
+  display: block;
+  transform-style: preserve-3d;
+  transform-origin: center center;
+}
+
+.logo-main-group {
+  transform-origin: center center;
+  transform-style: preserve-3d;
+}
+
+/* Initial state: flat, sharp star */
+.star-shape {
+  opacity: 1;
+  transition: opacity 200ms ease-out;
+}
+
+.rounded-shape {
+  opacity: 0;
+  transition: opacity 200ms ease-in;
+}
+
+.rounded-mask-circle {
+  r: 0;
+}
+
+/* Hover animation - plays once per hover */
+.cannonball-logo-wrapper:hover .cannonball-svg {
+  animation: cannonballRoll 1000ms ease-in-out forwards;
+}
+
+.cannonball-logo-wrapper:hover .star-shape {
+  animation: starFade 1000ms ease-in-out forwards;
+}
+
+.cannonball-logo-wrapper:hover .rounded-shape {
+  animation: roundedReveal 1000ms ease-in-out forwards;
+}
+
+.cannonball-logo-wrapper:hover .rounded-mask-circle {
+  animation: maskExpand 1000ms ease-in-out forwards;
+}
+
+/* Main cannonball rolling animation */
+@keyframes cannonballRoll {
+  0% {
+    transform: perspective(1000px) rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(1);
+  }
+  
+  /* Tilt backward - lean at ~120 degrees */
+  15% {
+    transform: perspective(1000px) rotateX(-30deg) rotateY(10deg) rotateZ(0deg) scale(0.95);
+  }
+  
+  /* Start rolling forward - passing through ~260 degrees worth of rotation */
+  40% {
+    transform: perspective(1000px) rotateX(20deg) rotateY(-140deg) rotateZ(140deg) scale(0.9);
+  }
+  
+  /* Mid-roll - maximum roundedness */
+  60% {
+    transform: perspective(1000px) rotateX(10deg) rotateY(-260deg) rotateZ(260deg) scale(0.92);
+  }
+  
+  /* Completing rotation - approaching 360 */
+  85% {
+    transform: perspective(1000px) rotateX(-5deg) rotateY(-350deg) rotateZ(350deg) scale(0.98);
+  }
+  
+  /* Return to flat, original state */
+  100% {
+    transform: perspective(1000px) rotateX(0deg) rotateY(-360deg) rotateZ(360deg) scale(1);
+  }
+}
+
+/* Star shape fades out during roll, returns at end */
+@keyframes starFade {
+  0% {
+    opacity: 1;
+  }
+  
+  20% {
+    opacity: 0.6;
+  }
+  
+  50% {
+    opacity: 0;
+  }
+  
+  80% {
+    opacity: 0.4;
+  }
+  
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Rounded shape reveals during rotation */
+@keyframes roundedReveal {
+  0% {
+    opacity: 0;
+  }
+  
+  25% {
+    opacity: 0.3;
+  }
+  
+  50% {
+    opacity: 0.9;
+  }
+  
+  70% {
+    opacity: 0.6;
+  }
+  
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Mask expands to create rounded illusion */
+@keyframes maskExpand {
+  0% {
+    r: 0;
+  }
+  
+  30% {
+    r: 40;
+  }
+  
+  60% {
+    r: 70;
+  }
+  
+  85% {
+    r: 50;
+  }
+  
+  100% {
+    r: 0;
+  }
+}
+
+/* Additional smoothing for premium feel */
+.cannonball-svg * {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="MX-IX is a carrier-neutral Internet Exchange where networks meet to peer directly. Connect once to reach ISPs, content and cloud providers across the fabric — lower latency, reduced transit costs and more resilient interconnection, with public peering, route servers and DDoS protection." />
+
+    <!-- Plus Jakarta Sans (primary typeface) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>MX-IX — Carrier-Neutral Internet Exchange &amp; Peering</title>
+
+    <!-- Structured data for search engines (helps generate sitelinks) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://mx-ix.com/#org",
+          "name": "MX-IX",
+          "legalName": "MX-IX Digital Infrastructure Private Limited",
+          "url": "https://mx-ix.com/",
+          "logo": "https://mx-ix.com/assets/logo.png",
+          "description": "MX-IX is a carrier-neutral Internet Exchange where networks peer directly to lower latency and transit costs.",
+          "areaServed": "IN"
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://mx-ix.com/#website",
+          "url": "https://mx-ix.com/",
+          "name": "MX-IX",
+          "publisher": { "@id": "https://mx-ix.com/#org" }
+        },
+        {
+          "@type": "SiteNavigationElement",
+          "name": [
+            "Services", "Locations", "Pricing", "Stats",
+            "Looking Glass", "Technical Requirements", "About", "Contact"
+          ],
+          "url": [
+            "https://mx-ix.com/services",
+            "https://mx-ix.com/locations",
+            "https://mx-ix.com/pricing",
+            "https://mx-ix.com/stats",
+            "https://mx-ix.com/looking-glass",
+            "https://mx-ix.com/technical",
+            "https://mx-ix.com/about",
+            "https://mx-ix.com/contact"
+          ]
+        }
+      ]
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

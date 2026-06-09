@@ -1,0 +1,167 @@
+.orbital-logo-container {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  perspective: 500px;
+  perspective-origin: center center;
+  transform-style: preserve-3d;
+}
+
+.orbital-logo-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+
+.logo-orbital-group {
+  transform-origin: center center;
+  transform-style: preserve-3d;
+  animation: true3DOrbital 4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+  filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.3));
+}
+
+/* TRUE 3D orbital animation - DRAMATIC perspective */
+@keyframes true3DOrbital {
+  /* PHASE 1: A → B orbiting forward and tilting */
+  0% {
+    transform: 
+      rotateX(0deg)
+      rotateY(0deg)
+      rotateZ(0deg)
+      translateZ(0px);
+  }
+  
+  /* Start tilt - pushing back in 3D space */
+  8% {
+    transform: 
+      rotateX(-25deg)
+      rotateY(15deg)
+      rotateZ(5deg)
+      translateZ(-20px);
+  }
+  
+  /* Deep orbit - maximum tilt */
+  20% {
+    transform: 
+      rotateX(-45deg)
+      rotateY(35deg)
+      rotateZ(15deg)
+      translateZ(-35px);
+  }
+  
+  /* Peak of orbital tilt */
+  35% {
+    transform: 
+      rotateX(-55deg)
+      rotateY(50deg)
+      rotateZ(25deg)
+      translateZ(-40px);
+  }
+  
+  /* Coming back forward */
+  45% {
+    transform: 
+      rotateX(-40deg)
+      rotateY(40deg)
+      rotateZ(18deg)
+      translateZ(-25px);
+  }
+  
+  /* PHASE 2: C → D - opposite orbital direction */
+  50% {
+    transform: 
+      rotateX(-25deg)
+      rotateY(25deg)
+      rotateZ(10deg)
+      translateZ(-15px);
+  }
+  
+  /* Starting opposite rotation */
+  58% {
+    transform: 
+      rotateX(-10deg)
+      rotateY(10deg)
+      rotateZ(0deg)
+      translateZ(-5px);
+  }
+  
+  /* Crossing center - tilting opposite way */
+  68% {
+    transform: 
+      rotateX(15deg)
+      rotateY(-15deg)
+      rotateZ(-15deg)
+      translateZ(-15px);
+  }
+  
+  /* Deep opposite orbit */
+  78% {
+    transform: 
+      rotateX(35deg)
+      rotateY(-35deg)
+      rotateZ(-28deg)
+      translateZ(-30px);
+  }
+  
+  /* Peak opposite tilt */
+  88% {
+    transform: 
+      rotateX(50deg)
+      rotateY(-50deg)
+      rotateZ(-35deg)
+      translateZ(-40px);
+  }
+  
+  /* Returning home */
+  93% {
+    transform: 
+      rotateX(25deg)
+      rotateY(-20deg)
+      rotateZ(-15deg)
+      translateZ(-20px);
+  }
+  
+  97% {
+    transform: 
+      rotateX(10deg)
+      rotateY(-8deg)
+      rotateZ(-5deg)
+      translateZ(-5px);
+  }
+  
+  /* Back to start */
+  100% {
+    transform: 
+      rotateX(0deg)
+      rotateY(0deg)
+      rotateZ(0deg)
+      translateZ(0px);
+  }
+}
+
+/* Enhanced 3D rendering */
+.logo-orbital-group {
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+}
+
+.orbital-logo-svg {
+  backface-visibility: visible;
+  -webkit-backface-visibility: visible;
+}
+
+/* Force 3D acceleration */
+.orbital-logo-container,
+.orbital-logo-svg,
+.logo-orbital-group {
+  -webkit-transform-style: preserve-3d;
+  transform-style: preserve-3d;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.orbital-logo-svg image {
+  transform-style: preserve-3d;
+}

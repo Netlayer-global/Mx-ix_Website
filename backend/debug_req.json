@@ -1,0 +1,38 @@
+{
+  "id": "new-1770369773498",
+  "name": "New Location",
+  "coordinates": [
+    89,
+    17
+  ],
+  "code": "NEW_LOC",
+  "region": "S",
+  "continentId": "s",
+  "status": "upcoming",
+  "pricing": [],
+  "asnList": [],
+  "enabledSites": [],
+  "portSpeeds": [
+    "1G",
+    "10G",
+    "100G"
+  ],
+  "protocols": [
+    "BGP-4",
+    "IPv4",
+    "IPv6"
+  ],
+  "features": [
+    "yy"
+  ],
+  "country": "99",
+  "latency": "kk",
+  "capacity": "90",
+  "ixName": "ix",
+  "datacenter": "dd",
+  "address": "ddddd",
+  "description": "ddddddddddddddddddddddddd",
+  "peers": 9,
+  "established": "9900",
+  "uptime": "99"
+}

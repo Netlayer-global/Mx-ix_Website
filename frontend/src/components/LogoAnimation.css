@@ -1,0 +1,64 @@
+.logo-animation-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  transition: opacity 0.5s ease-out;
+}
+
+.logo-animation-wrapper.complete {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.logo-animation-container {
+  position: relative;
+  width: 400px;
+  height: 400px;
+}
+
+.animated-logo {
+  width: 100%;
+  height: 100%;
+}
+
+/* Logo starts very small and scales to full size */
+.logo-group {
+  transform-origin: center center;
+  animation: logoScale 3s ease-out forwards;
+}
+
+@keyframes logoScale {
+  0% {
+    transform: scale(0.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Logo image maintains constant opacity, mask controls visibility */
+.logo-image {
+  opacity: 1;
+}
+
+/* Progressive mask reveal - draws/reveals from left to right */
+.mask-rect {
+  animation: maskReveal 3s ease-out forwards;
+}
+
+@keyframes maskReveal {
+  0% {
+    width: 0;
+  }
+  100% {
+    width: 309.37px;
+  }
+}
