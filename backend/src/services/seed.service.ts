@@ -143,7 +143,7 @@ export const seedDatabase = async (): Promise<void> => {
     console.log('🌱 Starting database seeding...');
 
     // Seed admin user
-    const existingUser = await User.findOne({ email: config.adminEmail });
+    const existingUser = await User.findOne({ email: config.adminEmail }).select('+password');
     if (!existingUser) {
       await User.create({
         email: config.adminEmail,
@@ -154,7 +154,18 @@ export const seedDatabase = async (): Promise<void> => {
       });
       console.log('✅ Admin user created');
     } else {
-      console.log('ℹ️ Admin user already exists');
+      // Keep the admin password in sync with the ADMIN_PASSWORD env value.
+      // This ensures a deployment can recover/rotate the admin password by
+      // simply updating .env and restarting (no manual DB surgery needed).
+      const passwordMatches = await existingUser.comparePassword(config.adminPassword);
+      if (!passwordMatches) {
+        existingUser.password = config.adminPassword; // pre-save hook re-hashes
+        existingUser.isActive = true;
+        await existingUser.save();
+        console.log('🔑 Admin password synced from ADMIN_PASSWORD env');
+      } else {
+        console.log('ℹ️ Admin user already exists');
+      }
     }
 
     // Seed network stats
