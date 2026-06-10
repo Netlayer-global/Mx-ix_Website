@@ -60,17 +60,17 @@ export const getRouteservers = (req: Request, res: Response) =>
   proxy('/routeservers', req, res, 'routeservers');
 
 export const getStatus = (req: Request, res: Response) =>
-  proxy(`/routeservers/${encodeURIComponent(req.params.id)}/status`, req, res, 'status');
+  proxy(`/routeservers/${encodeURIComponent(String(req.params.id))}/status`, req, res, 'status');
 
 export const getNeighbors = (req: Request, res: Response) =>
-  proxy(`/routeservers/${encodeURIComponent(req.params.id)}/neighbors`, req, res, 'neighbors');
+  proxy(`/routeservers/${encodeURIComponent(String(req.params.id))}/neighbors`, req, res, 'neighbors');
 
 export const getRoutes = (req: Request, res: Response) => {
-  const { id, neighborId } = req.params;
+  const id = String(req.params.id);
+  const neighborId = String(req.params.neighborId);
+  const rawFilter = String(req.params.filter || '');
   // filter: received | filtered | not-exported (default: received)
-  const filter = ['received', 'filtered', 'not-exported'].includes(req.params.filter || '')
-    ? req.params.filter
-    : 'received';
+  const filter = ['received', 'filtered', 'not-exported'].includes(rawFilter) ? rawFilter : 'received';
   return proxy(
     `/routeservers/${encodeURIComponent(id)}/neighbors/${encodeURIComponent(neighborId)}/routes/${filter}`,
     req,
