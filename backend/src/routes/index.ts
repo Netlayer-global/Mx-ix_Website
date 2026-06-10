@@ -12,6 +12,15 @@ import settingsRoutes from './settings.routes';
 import lgRoutes from './lg.routes';
 import statusRoutes from './status.routes';
 import membersRoutes from './members.routes';
+import portalRoutes from './portal.routes';
+import adminCustomersRoutes from './adminCustomers.routes';
+import adminOrdersRoutes from './adminOrders.routes';
+import adminTicketsRoutes from './adminTickets.routes';
+import adminMaintenanceRoutes from './adminMaintenance.routes';
+import adminUsersRoutes from './adminUsers.routes';
+import adminSystemRoutes from './adminSystem.routes';
+import adminIxpRoutes from './adminIxp.routes';
+import adminRouteServersRoutes from './adminRouteServers.routes';
 
 const router = Router();
 
@@ -38,5 +47,14 @@ router.use('/settings', settingsRoutes);
 router.use('/lg', lgRoutes);
 router.use('/status', statusRoutes);
 router.use('/members', membersRoutes);
+router.use('/portal', portalRoutes);
+router.use('/admin/customers', adminCustomersRoutes);
+router.use('/admin/orders', adminOrdersRoutes);
+router.use('/admin/tickets', adminTicketsRoutes);
+router.use('/admin/maintenance', adminMaintenanceRoutes);
+router.use('/admin/users', adminUsersRoutes);
+router.use('/admin/system', adminSystemRoutes);
+router.use('/admin/ixp', adminIxpRoutes);
+router.use('/admin/route-servers', adminRouteServersRoutes);
 
 export default router;

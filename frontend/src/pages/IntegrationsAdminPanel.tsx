@@ -8,6 +8,8 @@ import {
   Activity,
   Plug,
   AlertTriangle,
+  Boxes,
+  Receipt,
 } from 'lucide-react';
 import { settingsApi, IntegrationSettings } from '../services/api';
 
@@ -40,6 +42,27 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
   const [zTokenMask, setZTokenMask] = useState('');
   const [zTest, setZTest] = useState<TestState>({ status: 'idle' });
 
+  // IXP Manager form
+  const [iEnabled, setIEnabled] = useState(false);
+  const [iUrl, setIUrl] = useState('');
+  const [iKey, setIKey] = useState('');
+  const [iHasKey, setIHasKey] = useState(false);
+  const [iKeyMask, setIKeyMask] = useState('');
+  const [iTest, setITest] = useState<TestState>({ status: 'idle' });
+
+  // Zoho Books form
+  const [zoEnabled, setZoEnabled] = useState(false);
+  const [zoRegion, setZoRegion] = useState('com');
+  const [zoOrgId, setZoOrgId] = useState('');
+  const [zoClientId, setZoClientId] = useState('');
+  const [zoSecret, setZoSecret] = useState('');
+  const [zoHasSecret, setZoHasSecret] = useState(false);
+  const [zoSecretMask, setZoSecretMask] = useState('');
+  const [zoRefresh, setZoRefresh] = useState('');
+  const [zoHasRefresh, setZoHasRefresh] = useState(false);
+  const [zoRefreshMask, setZoRefreshMask] = useState('');
+  const [zoTest, setZoTest] = useState<TestState>({ status: 'idle' });
+
   const hydrate = (data: IntegrationSettings) => {
     setGEnabled(data.grafana.enabled);
     setGUrl(data.grafana.url);
@@ -52,6 +75,21 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
     setZHasToken(data.zabbix.hasApiToken);
     setZTokenMask(data.zabbix.apiTokenMask);
     setZToken('');
+    setIEnabled(data.ixpManager.enabled);
+    setIUrl(data.ixpManager.url);
+    setIHasKey(data.ixpManager.hasApiKey);
+    setIKeyMask(data.ixpManager.apiKeyMask);
+    setIKey('');
+    setZoEnabled(data.zohoBooks.enabled);
+    setZoRegion(data.zohoBooks.region || 'com');
+    setZoOrgId(data.zohoBooks.organizationId);
+    setZoClientId(data.zohoBooks.clientId);
+    setZoHasSecret(data.zohoBooks.hasClientSecret);
+    setZoSecretMask(data.zohoBooks.clientSecretMask);
+    setZoSecret('');
+    setZoHasRefresh(data.zohoBooks.hasRefreshToken);
+    setZoRefreshMask(data.zohoBooks.refreshTokenMask);
+    setZoRefresh('');
   };
 
   useEffect(() => {
@@ -77,6 +115,19 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
         enabled: zEnabled,
         url: zUrl,
         ...(zToken ? { apiToken: zToken } : {}),
+      },
+      ixpManager: {
+        enabled: iEnabled,
+        url: iUrl,
+        ...(iKey ? { apiKey: iKey } : {}),
+      },
+      zohoBooks: {
+        enabled: zoEnabled,
+        region: zoRegion,
+        organizationId: zoOrgId,
+        clientId: zoClientId,
+        ...(zoSecret ? { clientSecret: zoSecret } : {}),
+        ...(zoRefresh ? { refreshToken: zoRefresh } : {}),
       },
     });
     setSaving(false);
@@ -105,6 +156,35 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
       setZTest({ status: 'ok', message: `Connected — Zabbix v${res.data.version || '?'}` });
     } else {
       setZTest({ status: 'fail', message: res.error || 'Connection failed' });
+    }
+  };
+
+  const handleTestIxp = async () => {
+    setITest({ status: 'testing' });
+    const res = await settingsApi.testIxpManager({ url: iUrl, apiKey: iKey || undefined });
+    if (res.success && res.data?.connected) {
+      setITest({
+        status: 'ok',
+        message: `Connected${res.data.customers !== undefined ? ` — ${res.data.customers} customers` : ''}`,
+      });
+    } else {
+      setITest({ status: 'fail', message: res.error || 'Connection failed' });
+    }
+  };
+
+  const handleTestZoho = async () => {
+    setZoTest({ status: 'testing' });
+    const res = await settingsApi.testZoho({
+      region: zoRegion,
+      organizationId: zoOrgId,
+      clientId: zoClientId,
+      clientSecret: zoSecret || undefined,
+      refreshToken: zoRefresh || undefined,
+    });
+    if (res.success && res.data?.connected) {
+      setZoTest({ status: 'ok', message: `Connected${res.data.orgName ? ` — ${res.data.orgName}` : ''}` });
+    } else {
+      setZoTest({ status: 'fail', message: res.error || 'Connection failed' });
     }
   };
 
@@ -243,6 +323,108 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
             </Field>
 
             <TestRow state={zTest} onTest={handleTestZabbix} />
+          </div>
+        </section>
+
+        {/* ── IXP MANAGER ──────────────────────────────── */}
+        <section className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+            <div className="flex items-center gap-3">
+              <Boxes className="w-5 h-5 text-[#F20732]" />
+              <div>
+                <h2 className="text-lg font-bold">IXP Manager</h2>
+                <p className="text-xs text-gray-500">Operational source of truth — members, ports & provisioning</p>
+              </div>
+            </div>
+            <Toggle enabled={iEnabled} onChange={setIEnabled} />
+          </div>
+
+          <div className="p-6 space-y-4">
+            <Field label="IXP Manager URL" hint="Base URL of your IXP Manager instance (e.g. https://ixp.mx-ix.com)">
+              <input
+                type="url"
+                value={iUrl}
+                onChange={(e) => setIUrl(e.target.value)}
+                placeholder="https://ixp.example.com"
+                className="admin-input"
+              />
+            </Field>
+
+            <Field
+              label="API Key"
+              hint={iHasKey ? `Saved: ${iKeyMask} — leave blank to keep` : 'Sent as the X-IXP-Manager-API-Key header'}
+            >
+              <input
+                type="password"
+                value={iKey}
+                onChange={(e) => setIKey(e.target.value)}
+                placeholder={iHasKey ? '•••••••• (unchanged)' : 'Enter API key'}
+                className="admin-input"
+                autoComplete="new-password"
+              />
+            </Field>
+
+            <TestRow state={iTest} onTest={handleTestIxp} />
+          </div>
+        </section>
+
+        {/* ── ZOHO BOOKS ───────────────────────────────── */}
+        <section className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+            <div className="flex items-center gap-3">
+              <Receipt className="w-5 h-5 text-[#F20732]" />
+              <div>
+                <h2 className="text-lg font-bold">Zoho Books</h2>
+                <p className="text-xs text-gray-500">Billing system of record — member invoices (OAuth2)</p>
+              </div>
+            </div>
+            <Toggle enabled={zoEnabled} onChange={setZoEnabled} />
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Data Center Region" hint="Zoho domain suffix">
+                <select value={zoRegion} onChange={(e) => setZoRegion(e.target.value)} className="admin-input">
+                  {['com', 'eu', 'in', 'com.au', 'jp', 'ca', 'com.cn'].map((r) => (
+                    <option key={r} value={r}>
+                      .{r}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Organization ID" hint="Zoho Books organization_id">
+                <input value={zoOrgId} onChange={(e) => setZoOrgId(e.target.value)} placeholder="e.g. 60012345678" className="admin-input" />
+              </Field>
+            </div>
+
+            <Field label="Client ID" hint="OAuth2 self-client / app client id">
+              <input value={zoClientId} onChange={(e) => setZoClientId(e.target.value)} placeholder="1000.XXXXXXXX" className="admin-input" />
+            </Field>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Client Secret" hint={zoHasSecret ? `Saved: ${zoSecretMask} — leave blank to keep` : 'OAuth2 client secret'}>
+                <input
+                  type="password"
+                  value={zoSecret}
+                  onChange={(e) => setZoSecret(e.target.value)}
+                  placeholder={zoHasSecret ? '•••••••• (unchanged)' : 'Enter client secret'}
+                  className="admin-input"
+                  autoComplete="new-password"
+                />
+              </Field>
+              <Field label="Refresh Token" hint={zoHasRefresh ? `Saved: ${zoRefreshMask} — leave blank to keep` : 'OAuth2 refresh token'}>
+                <input
+                  type="password"
+                  value={zoRefresh}
+                  onChange={(e) => setZoRefresh(e.target.value)}
+                  placeholder={zoHasRefresh ? '•••••••• (unchanged)' : 'Enter refresh token'}
+                  className="admin-input"
+                  autoComplete="new-password"
+                />
+              </Field>
+            </div>
+
+            <TestRow state={zoTest} onTest={handleTestZoho} />
           </div>
         </section>
       </main>

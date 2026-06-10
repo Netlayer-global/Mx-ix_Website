@@ -413,6 +413,22 @@ export interface IntegrationSettings {
     hasApiToken: boolean;
     apiTokenMask: string;
   };
+  ixpManager: {
+    enabled: boolean;
+    url: string;
+    hasApiKey: boolean;
+    apiKeyMask: string;
+  };
+  zohoBooks: {
+    enabled: boolean;
+    region: string;
+    organizationId: string;
+    clientId: string;
+    hasClientSecret: boolean;
+    clientSecretMask: string;
+    hasRefreshToken: boolean;
+    refreshTokenMask: string;
+  };
   updatedAt?: string;
 }
 
@@ -427,6 +443,19 @@ export interface SettingsUpdate {
     enabled?: boolean;
     url?: string;
     apiToken?: string;
+  };
+  ixpManager?: {
+    enabled?: boolean;
+    url?: string;
+    apiKey?: string;
+  };
+  zohoBooks?: {
+    enabled?: boolean;
+    region?: string;
+    organizationId?: string;
+    clientId?: string;
+    clientSecret?: string;
+    refreshToken?: string;
   };
 }
 
@@ -444,6 +473,16 @@ export const settingsApi = {
     ),
   testZabbix: (data: { url?: string; apiToken?: string }) =>
     apiCall<{ connected: boolean; version?: string }>('/settings/test/zabbix', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  testIxpManager: (data: { url?: string; apiKey?: string }) =>
+    apiCall<{ connected: boolean; customers?: number }>('/settings/test/ixpmanager', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  testZoho: (data: { region?: string; organizationId?: string; clientId?: string; clientSecret?: string; refreshToken?: string }) =>
+    apiCall<{ connected: boolean; orgName?: string }>('/settings/test/zoho', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -624,3 +663,722 @@ export default {
   members: membersApi,
 };
 
+
+// ============================================
+// Customer Portal (separate auth from admin)
+// ============================================
+export const PORTAL_TOKEN_KEY = 'mx-ix-portal-token';
+
+// Portal API helper — uses the customer token, never the admin token.
+async function portalApiCall<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<{ success: boolean; data?: T; error?: string; message?: string }> {
+  try {
+    const token = localStorage.getItem(PORTAL_TOKEN_KEY);
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    };
+
+    const response = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      // 401 = expired/invalid session. Clear and notify the portal shell.
+      if (response.status === 401) {
+        localStorage.removeItem(PORTAL_TOKEN_KEY);
+        window.dispatchEvent(new CustomEvent('portal-unauthorized'));
+      }
+      return { success: false, error: result.error || 'Request failed', ...result };
+    }
+    return result;
+  } catch (error) {
+    console.error('Portal API call failed:', error);
+    return { success: false, error: 'Network error. Please check your connection.' };
+  }
+}
+
+export type PortalRole = 'admin' | 'viewer' | 'billing';
+export type OrgStatus = 'pending' | 'active' | 'suspended';
+export type PortStatus = 'active' | 'provisioning' | 'down' | 'maintenance';
+
+export interface PortalUserInfo {
+  id: string;
+  email: string;
+  name: string;
+  role: PortalRole;
+  twoFactorEnabled?: boolean;
+}
+
+export interface PortalOrgInfo {
+  id: string;
+  name: string;
+  asn?: number;
+  additionalAsns?: number[];
+  type: string;
+  status: OrgStatus;
+  peeringPolicy: string;
+  locations?: string[];
+  website?: string;
+  nocEmail?: string;
+  nocPhone?: string;
+}
+
+export interface PortItem {
+  _id: string;
+  organization: string;
+  name: string;
+  location: string;
+  speed: string;
+  vlan?: string;
+  ipv4?: string;
+  ipv6?: string;
+  macAddress?: string;
+  status: PortStatus;
+  zabbixHostId?: string;
+  ixpManagerPortId?: string;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PortalOverview {
+  organization: { name: string; asn?: number; additionalAsns?: number[]; status: OrgStatus; peeringPolicy: string };
+  cards: {
+    ports: number;
+    activePorts: number;
+    asns: number;
+    peeringSessions: number;
+    sessionsUp: number;
+    openIncidents: number;
+  };
+  ports: Array<{ id: string; name: string; location: string; speed: string; status: PortStatus }>;
+  incidents: Array<{ id: string; title: string; status: string; impact: string; startedAt?: string }>;
+}
+
+export interface PortalSession {
+  routeserverId: string;
+  routeserver: string;
+  neighborId: string;
+  address: string;
+  asn: number;
+  state: string;
+  description: string;
+  routesReceived: number;
+  routesFiltered: number;
+  routesExported: number;
+  uptime?: number | string;
+  lastError?: string;
+}
+
+export const portalApi = {
+  // Auth
+  signup: (data: {
+    companyName: string;
+    asn?: string | number;
+    website?: string;
+    type?: string;
+    contactName: string;
+    email: string;
+    password: string;
+  }) => portalApiCall<void>('/portal/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
+
+  login: async (email: string, password: string, token?: string) => {
+    const result = await portalApiCall<{ token: string; user: PortalUserInfo; organization: PortalOrgInfo }>(
+      '/portal/auth/login',
+      { method: 'POST', body: JSON.stringify({ email, password, token }) }
+    );
+    if (result.success && result.data?.token) {
+      localStorage.setItem(PORTAL_TOKEN_KEY, result.data.token);
+    }
+    return result as typeof result & { twoFactorRequired?: boolean };
+  },
+
+  logout: () => localStorage.removeItem(PORTAL_TOKEN_KEY),
+  isLoggedIn: () => !!localStorage.getItem(PORTAL_TOKEN_KEY),
+
+  me: () => portalApiCall<{ user: PortalUserInfo; organization: PortalOrgInfo }>('/portal/auth/me'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    portalApiCall<void>('/portal/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+
+  setup2fa: () => portalApiCall<{ secret: string; otpauth: string; qr: string }>('/portal/auth/2fa/setup', { method: 'POST' }),
+  enable2fa: (token: string) =>
+    portalApiCall<void>('/portal/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ token }) }),
+  disable2fa: (password: string) =>
+    portalApiCall<void>('/portal/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ password }) }),
+
+  forgotPassword: (email: string) =>
+    portalApiCall<void>('/portal/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    portalApiCall<void>('/portal/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
+
+  // Data
+  getOverview: () => portalApiCall<PortalOverview>('/portal/overview'),
+  getPorts: () => portalApiCall<PortItem[]>('/portal/ports'),
+  getPeeringSessions: () =>
+    portalApiCall<{ asns: number[]; sessions: PortalSession[]; lgReachable: boolean }>('/portal/peering/sessions'),
+  getPeeringRoutes: (rsId: string, neighborId: string, filter: 'received' | 'filtered' | 'not-exported' = 'received') =>
+    portalApiCall<any>(
+      `/portal/peering/routes/${encodeURIComponent(rsId)}/${encodeURIComponent(neighborId)}/${filter}`
+    ),
+};
+
+// ── Portal: traffic & analytics ──
+export type TrafficRange = '1h' | '24h' | '7d' | '30d' | '1y';
+
+export interface TrafficSeries {
+  t: number[];
+  inbound: number[];
+  outbound: number[];
+}
+
+export interface TrafficStats {
+  peakIn: number;
+  peakOut: number;
+  avgIn: number;
+  avgOut: number;
+  p95In: number;
+  p95Out: number;
+  p95: number;
+  unit: string;
+}
+
+export interface AggregateTraffic {
+  range: TrafficRange;
+  source: string;
+  series: TrafficSeries;
+  stats: TrafficStats;
+  ports: Array<{ id: string; name: string; speed: string; location: string; stats: TrafficStats }>;
+}
+
+export interface PortTraffic {
+  port: { id: string; name: string; speed: string; location: string };
+  range: TrafficRange;
+  source: string;
+  series: TrafficSeries;
+  stats: TrafficStats;
+}
+
+export const portalTrafficApi = {
+  getAggregate: (range: TrafficRange = '24h') =>
+    portalApiCall<AggregateTraffic>(`/portal/traffic?range=${range}`),
+  getPort: (portId: string, range: TrafficRange = '24h') =>
+    portalApiCall<PortTraffic>(`/portal/ports/${encodeURIComponent(portId)}/traffic?range=${range}`),
+};
+
+// ── Portal: team management ──
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: PortalRole;
+  isActive: boolean;
+  lastLogin?: string | null;
+  createdAt?: string;
+}
+
+export const portalTeamApi = {
+  list: () => portalApiCall<TeamMember[]>('/portal/team'),
+  add: (data: { name: string; email: string; password: string; role: PortalRole }) =>
+    portalApiCall<TeamMember>('/portal/team', { method: 'POST', body: JSON.stringify(data) }),
+  update: (userId: string, data: { role?: PortalRole; isActive?: boolean }) =>
+    portalApiCall<TeamMember>(`/portal/team/${userId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (userId: string) => portalApiCall<void>(`/portal/team/${userId}`, { method: 'DELETE' }),
+};
+
+// ── Portal: bilateral peering & policy ──
+export interface PeeringPolicyInfo {
+  peeringPolicy: string;
+  peeringPolicyUrl: string;
+  peeringNotes: string;
+  asn?: number;
+  additionalAsns?: number[];
+}
+
+export interface PeerNetwork {
+  id: string;
+  name: string;
+  asn: number;
+  type: string;
+  peeringPolicy: string;
+  locations?: string[];
+  website?: string;
+}
+
+export interface PeeringRequestItem {
+  id: string;
+  direction: 'incoming' | 'outgoing';
+  fromAsn?: number;
+  toAsn: number;
+  toName: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  message?: string;
+  responseMessage?: string;
+  locations?: string[];
+  respondedAt?: string | null;
+  createdAt: string;
+}
+
+export const portalPeeringApi = {
+  getPolicy: () => portalApiCall<PeeringPolicyInfo>('/portal/peering/policy'),
+  updatePolicy: (data: { peeringPolicy?: string; peeringPolicyUrl?: string; peeringNotes?: string }) =>
+    portalApiCall<PeeringPolicyInfo>('/portal/peering/policy', { method: 'PUT', body: JSON.stringify(data) }),
+  getNetworks: () => portalApiCall<PeerNetwork[]>('/portal/peering/networks'),
+  getMarketplace: () => portalApiCall<MarketplaceNetwork[]>('/portal/peering/marketplace'),
+  listRequests: () => portalApiCall<PeeringRequestItem[]>('/portal/peering/requests'),
+  createRequest: (data: { toAsn: number; toName?: string; message?: string; locations?: string[] }) =>
+    portalApiCall<{ id: string; linkedToMember: boolean }>('/portal/peering/requests', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  respondRequest: (id: string, action: 'accept' | 'reject', responseMessage?: string) =>
+    portalApiCall<{ status: string }>(`/portal/peering/requests/${id}/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ action, responseMessage }),
+    }),
+  cancelRequest: (id: string) =>
+    portalApiCall<void>(`/portal/peering/requests/${id}/cancel`, { method: 'POST' }),
+};
+
+export interface MarketplaceNetwork extends PeerNetwork {
+  sharedLocations: string[];
+  recommended: boolean;
+  requestStatus: string | null;
+  score: number;
+}
+
+// ── Portal: notifications + live stream ──
+export interface NotificationItem {
+  _id: string;
+  type: 'order' | 'ticket' | 'peering' | 'alert' | 'billing' | 'system';
+  title: string;
+  body: string;
+  link?: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export const portalNotificationsApi = {
+  list: () => portalApiCall<{ notifications: NotificationItem[]; unread: number }>('/portal/notifications'),
+  markRead: (id: string) => portalApiCall<void>(`/portal/notifications/${id}/read`, { method: 'POST' }),
+  markAllRead: () => portalApiCall<void>('/portal/notifications/read-all', { method: 'POST' }),
+  streamUrl: () => {
+    const token = localStorage.getItem(PORTAL_TOKEN_KEY) || '';
+    return `${API_BASE}/portal/stream?token=${encodeURIComponent(token)}`;
+  },
+};
+
+// ── Portal: threshold alerts ──
+export type AlertScope = 'aggregate' | 'port';
+export type AlertMetric = 'traffic_in' | 'traffic_out' | 'utilization';
+
+export interface AlertChannels {
+  email: string[];
+  slackWebhook?: string;
+  webhook?: string;
+}
+
+export interface AlertRuleItem {
+  _id: string;
+  name: string;
+  scope: AlertScope;
+  portId?: string | null;
+  metric: AlertMetric;
+  thresholdMbps?: number;
+  thresholdPercent?: number;
+  channels: AlertChannels;
+  enabled: boolean;
+  cooldownMinutes: number;
+  lastTriggeredAt?: string | null;
+  createdAt: string;
+}
+
+export const portalAlertsApi = {
+  list: () => portalApiCall<AlertRuleItem[]>('/portal/alerts'),
+  create: (data: Partial<AlertRuleItem>) => portalApiCall<AlertRuleItem>('/portal/alerts', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<AlertRuleItem>) =>
+    portalApiCall<AlertRuleItem>(`/portal/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => portalApiCall<void>(`/portal/alerts/${id}`, { method: 'DELETE' }),
+  test: (id: string) => portalApiCall<{ triggered: boolean; message?: string }>(`/portal/alerts/${id}/test`, { method: 'POST' }),
+};
+
+// ── Portal: self-service blackholing ──
+export interface BlackholeItem {
+  _id: string;
+  prefix: string;
+  description?: string;
+  active: boolean;
+  expiresAt?: string | null;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export const portalBlackholeApi = {
+  list: () => portalApiCall<BlackholeItem[]>('/portal/blackholes'),
+  create: (data: { prefix: string; description?: string; expiresAt?: string }) =>
+    portalApiCall<BlackholeItem>('/portal/blackholes', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { active?: boolean; description?: string; expiresAt?: string | null }) =>
+    portalApiCall<BlackholeItem>(`/portal/blackholes/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => portalApiCall<void>(`/portal/blackholes/${id}`, { method: 'DELETE' }),
+};
+
+// ============================================
+// Admin: Customer (Organization) management
+// ============================================
+export interface CustomerOrg {
+  _id: string;
+  name: string;
+  legalName?: string;
+  asn?: number;
+  additionalAsns?: number[];
+  website?: string;
+  type: string;
+  peeringPolicy: string;
+  status: OrgStatus;
+  locations?: string[];
+  nocEmail?: string;
+  nocPhone?: string;
+  ixpManagerId?: string;
+  zohoContactId?: string;
+  notes?: string;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  userCount?: number;
+  portCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomerUser {
+  _id: string;
+  email: string;
+  name: string;
+  role: PortalRole;
+  isActive: boolean;
+  lastLogin?: string | null;
+}
+
+export const adminCustomersApi = {
+  list: () => apiCall<CustomerOrg[]>('/admin/customers'),
+  get: (id: string) =>
+    apiCall<{ organization: CustomerOrg; users: CustomerUser[]; ports: PortItem[] }>(`/admin/customers/${id}`),
+  create: (data: Partial<CustomerOrg> & { user?: { email: string; password: string; name?: string; role?: PortalRole } }) =>
+    apiCall<CustomerOrg>('/admin/customers', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<CustomerOrg>) =>
+    apiCall<CustomerOrg>(`/admin/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  setStatus: (id: string, status: OrgStatus) =>
+    apiCall<CustomerOrg>(`/admin/customers/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+  remove: (id: string) => apiCall<void>(`/admin/customers/${id}`, { method: 'DELETE' }),
+  // Ports
+  createPort: (id: string, data: Partial<PortItem>) =>
+    apiCall<PortItem>(`/admin/customers/${id}/ports`, { method: 'POST', body: JSON.stringify(data) }),
+  updatePort: (id: string, portId: string, data: Partial<PortItem>) =>
+    apiCall<PortItem>(`/admin/customers/${id}/ports/${portId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePort: (id: string, portId: string) =>
+    apiCall<void>(`/admin/customers/${id}/ports/${portId}`, { method: 'DELETE' }),
+  // Users
+  createUser: (id: string, data: { email: string; password: string; name: string; role?: PortalRole }) =>
+    apiCall<CustomerUser>(`/admin/customers/${id}/users`, { method: 'POST', body: JSON.stringify(data) }),
+  deleteUser: (id: string, userId: string) =>
+    apiCall<void>(`/admin/customers/${id}/users/${userId}`, { method: 'DELETE' }),
+  // Impersonate (support/admin) — returns a portal session token
+  impersonate: (id: string) =>
+    apiCall<{ token: string; as: { email: string; name: string }; organization: string }>(
+      `/admin/customers/${id}/impersonate`,
+      { method: 'POST' }
+    ),
+};
+
+// ── Admin: IXP Manager sync ──
+export interface IxpSyncResult {
+  fetched: number;
+  linked: number;
+  unmatched: Array<{ ixpManagerId: string; name: string; asn?: number }>;
+}
+
+export const adminIxpApi = {
+  status: () => apiCall<{ configured: boolean; connected: boolean; error?: string }>('/admin/ixp/status'),
+  sync: () => apiCall<IxpSyncResult>('/admin/ixp/sync', { method: 'POST' }),
+  importPorts: (orgId: string) =>
+    apiCall<{ imported: number; total: number }>(`/admin/ixp/import-ports/${orgId}`, { method: 'POST' }),
+};
+
+// ── Admin: Alice-LG route servers (Option A) ──
+export interface RouteServerItem {
+  _id: string;
+  name: string;
+  group: string;
+  backend: 'birdwatcher' | 'gobgp';
+  apiUrl: string;
+  birdwatcherType: string;
+  asn?: number;
+  ipv4?: string;
+  ipv6?: string;
+  location?: string;
+  order: number;
+  enabled: boolean;
+}
+
+export const adminRouteServersApi = {
+  list: () => apiCall<RouteServerItem[]>('/admin/route-servers'),
+  create: (data: Partial<RouteServerItem>) =>
+    apiCall<RouteServerItem>('/admin/route-servers', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<RouteServerItem>) =>
+    apiCall<RouteServerItem>(`/admin/route-servers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => apiCall<void>(`/admin/route-servers/${id}`, { method: 'DELETE' }),
+  config: () => apiCall<{ config: string; applyConfigured: boolean; path: string | null }>('/admin/route-servers/config'),
+  apply: () => apiCall<{ applied?: boolean; output?: string; config?: string }>('/admin/route-servers/apply', { method: 'POST' }),
+};
+
+// ============================================
+// Orders (Services & provisioning)
+// ============================================
+export type OrderType = 'new_port' | 'upgrade' | 'addon';
+export type OrderStatus =
+  | 'submitted'
+  | 'reviewing'
+  | 'approved'
+  | 'provisioning'
+  | 'completed'
+  | 'rejected'
+  | 'cancelled';
+
+export interface OrderUpdate {
+  status: OrderStatus;
+  message: string;
+  by: string;
+  at: string;
+}
+
+export interface OrderItem {
+  _id: string;
+  organization: string;
+  type: OrderType;
+  location?: string;
+  speed?: string;
+  addon?: string;
+  portId?: string | null;
+  quantity?: number;
+  notes?: string;
+  status: OrderStatus;
+  adminNotes?: string;
+  ixpManagerRef?: string;
+  updates: OrderUpdate[];
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  // admin-enriched
+  orgName?: string;
+  orgAsn?: number;
+}
+
+export interface OrderCatalog {
+  locations: Array<{ id: string; name: string; region: string }>;
+  speeds: string[];
+  addons: Array<{ id: string; name: string; description: string }>;
+}
+
+export const portalOrdersApi = {
+  getCatalog: () => portalApiCall<OrderCatalog>('/portal/orders/catalog'),
+  list: () => portalApiCall<OrderItem[]>('/portal/orders'),
+  create: (data: {
+    type: OrderType;
+    location?: string;
+    speed?: string;
+    addon?: string;
+    portId?: string;
+    quantity?: number;
+    notes?: string;
+  }) => portalApiCall<OrderItem>('/portal/orders', { method: 'POST', body: JSON.stringify(data) }),
+  cancel: (id: string) => portalApiCall<void>(`/portal/orders/${id}/cancel`, { method: 'POST' }),
+};
+
+export const adminOrdersApi = {
+  list: (status?: OrderStatus) =>
+    apiCall<OrderItem[]>(`/admin/orders${status ? `?status=${status}` : ''}`),
+  update: (id: string, data: { status?: OrderStatus; adminNotes?: string; message?: string }) =>
+    apiCall<OrderItem>(`/admin/orders/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  ixpMembers: () => apiCall<any[]>('/admin/orders/ixpmanager/members'),
+};
+
+// ============================================
+// Portal Billing (Zoho Books, read-only)
+// ============================================
+export interface InvoiceItem {
+  invoiceId: string;
+  number: string;
+  status: string;
+  date: string;
+  dueDate: string;
+  total: number;
+  balance: number;
+  currency: string;
+}
+
+export const portalBillingApi = {
+  listInvoices: () =>
+    portalApiCall<{ configured: boolean; linked: boolean; invoices: InvoiceItem[] }>('/portal/billing/invoices'),
+  // Fetches the PDF with the portal token and opens it in a new tab.
+  openInvoicePdf: async (invoiceId: string): Promise<boolean> => {
+    const token = localStorage.getItem(PORTAL_TOKEN_KEY);
+    const r = await fetch(`${API_BASE}/portal/billing/invoices/${encodeURIComponent(invoiceId)}/pdf`, {
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    });
+    if (!r.ok) return false;
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return true;
+  },
+};
+
+// ============================================
+// Support Tickets
+// ============================================
+export type TicketStatus = 'open' | 'pending' | 'resolved' | 'closed';
+export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type TicketCategory = 'technical' | 'billing' | 'peering' | 'provisioning' | 'general';
+
+export interface TicketMessage {
+  from: 'member' | 'staff';
+  authorName: string;
+  body: string;
+  at: string;
+}
+
+export interface TicketItem {
+  _id: string;
+  organization: string;
+  subject: string;
+  category: TicketCategory;
+  priority: TicketPriority;
+  status: TicketStatus;
+  messages: TicketMessage[];
+  assignedTo?: string;
+  createdBy?: string;
+  lastReplyAt: string;
+  createdAt: string;
+  updatedAt: string;
+  // admin-enriched
+  orgName?: string;
+  orgAsn?: number;
+  messageCount?: number;
+}
+
+export const portalTicketsApi = {
+  list: () => portalApiCall<TicketItem[]>('/portal/tickets'),
+  get: (id: string) => portalApiCall<TicketItem>(`/portal/tickets/${id}`),
+  create: (data: { subject: string; category: TicketCategory; priority: TicketPriority; body: string }) =>
+    portalApiCall<TicketItem>('/portal/tickets', { method: 'POST', body: JSON.stringify(data) }),
+  reply: (id: string, body: string) =>
+    portalApiCall<TicketItem>(`/portal/tickets/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }),
+  close: (id: string) => portalApiCall<TicketItem>(`/portal/tickets/${id}/close`, { method: 'POST' }),
+};
+
+export const adminTicketsApi = {
+  list: (status?: TicketStatus) => apiCall<TicketItem[]>(`/admin/tickets${status ? `?status=${status}` : ''}`),
+  get: (id: string) => apiCall<TicketItem>(`/admin/tickets/${id}`),
+  reply: (id: string, body: string) =>
+    apiCall<TicketItem>(`/admin/tickets/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }),
+  update: (id: string, data: { status?: TicketStatus; assignedTo?: string; priority?: TicketPriority }) =>
+    apiCall<TicketItem>(`/admin/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+// ============================================
+// Admin: roles, audit, announcements, templates, NOC (Phase 6)
+// ============================================
+export type AdminRole = 'super-admin' | 'admin' | 'noc' | 'billing' | 'support' | 'editor';
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string;
+  role: AdminRole;
+  isActive: boolean;
+  createdAt?: string;
+}
+
+export const adminUsersApi = {
+  list: () => apiCall<AdminUser[]>('/admin/users'),
+  create: (data: { email: string; password: string; name: string; role: AdminRole }) =>
+    apiCall<AdminUser>('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { role?: AdminRole; isActive?: boolean; password?: string }) =>
+    apiCall<AdminUser>(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id: string) => apiCall<void>(`/admin/users/${id}`, { method: 'DELETE' }),
+};
+
+export interface AuditEntry {
+  _id: string;
+  actor: string;
+  action: string;
+  resource: string;
+  resourceId?: string;
+  before?: any;
+  after?: any;
+  createdAt: string;
+}
+
+export interface AnnouncementItem {
+  _id: string;
+  title: string;
+  body: string;
+  type: 'info' | 'maintenance' | 'incident';
+  channels: { inApp: boolean; email: boolean };
+  audience: 'all' | 'active';
+  sentBy?: string;
+  recipients: number;
+  createdAt: string;
+}
+
+export interface EmailTemplateItem {
+  _id: string;
+  key: string;
+  name: string;
+  subject: string;
+  body: string;
+  enabled: boolean;
+  variables: string[];
+}
+
+export interface NocDashboard {
+  totals: {
+    members: number;
+    ports: number;
+    capacityGbps: number;
+    openOrders: number;
+    openTickets: number;
+    active: number;
+    pending: number;
+    suspended: number;
+  };
+  capacity: Array<{ location: string; ports: number; capacityMbps: number; down: number }>;
+  atRisk: Array<{ id: string; name: string; asn?: number; status: string; reasons: string[] }>;
+}
+
+export const adminSystemApi = {
+  getAudit: (limit = 100) => apiCall<AuditEntry[]>(`/admin/system/audit?limit=${limit}`),
+  listAnnouncements: () => apiCall<AnnouncementItem[]>('/admin/system/announcements'),
+  createAnnouncement: (data: {
+    title: string;
+    body: string;
+    type: 'info' | 'maintenance' | 'incident';
+    channels: { inApp: boolean; email: boolean };
+    audience: 'all' | 'active';
+  }) => apiCall<AnnouncementItem>('/admin/system/announcements', { method: 'POST', body: JSON.stringify(data) }),
+  listTemplates: () => apiCall<EmailTemplateItem[]>('/admin/system/email-templates'),
+  upsertTemplate: (data: Partial<EmailTemplateItem>) =>
+    apiCall<EmailTemplateItem>('/admin/system/email-templates', { method: 'PUT', body: JSON.stringify(data) }),
+  deleteTemplate: (id: string) => apiCall<void>(`/admin/system/email-templates/${id}`, { method: 'DELETE' }),
+  noc: () => apiCall<NocDashboard>('/admin/system/noc'),
+};

@@ -319,3 +319,148 @@ textarea:focus-visible,
     -webkit-text-size-adjust: 100%;
   }
 }
+
+/* ============================================================
+   Admin light theme — remaps the dark admin panels to the same
+   light surface used by the customer dashboard, without editing
+   every panel. Scoped to the .admin-light content wrapper.
+   ============================================================ */
+.admin-light { color: #0A0A0B; }
+
+/* Page backgrounds -> show the light shell behind */
+.admin-light .bg-gray-900,
+.admin-light .bg-gray-950 { background-color: transparent !important; }
+
+/* Cards / headers / surfaces -> white */
+.admin-light .bg-gray-800,
+.admin-light .bg-gray-800\/50,
+.admin-light .bg-gray-800\/60 { background-color: #ffffff !important; }
+
+/* Inputs / secondary buttons -> light slate */
+.admin-light .bg-gray-700 { background-color: #f1f5f9 !important; }
+
+/* Borders */
+.admin-light .border-gray-600,
+.admin-light .border-gray-700,
+.admin-light .border-gray-800 { border-color: #e5e7eb !important; }
+
+/* Text colors */
+.admin-light .text-white { color: #0A0A0B !important; }
+.admin-light .text-gray-300 { color: #334155 !important; }
+.admin-light .text-gray-400 { color: #64748b !important; }
+.admin-light .text-gray-500 { color: #94a3b8 !important; }
+
+/* Hover states */
+.admin-light .hover\:bg-gray-700:hover,
+.admin-light .hover\:bg-gray-600:hover { background-color: #f1f5f9 !important; }
+.admin-light .hover\:bg-gray-800\/50:hover { background-color: #f8fafc !important; }
+.admin-light .hover\:border-gray-500:hover { border-color: #94a3b8 !important; }
+
+/* Form fields (override the dark .admin-panel rules) */
+.admin-light.admin-panel input,
+.admin-light .admin-panel input,
+.admin-light.admin-panel textarea,
+.admin-light .admin-panel textarea,
+.admin-light.admin-panel select,
+.admin-light .admin-panel select,
+.admin-light input,
+.admin-light textarea,
+.admin-light select {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0A0A0B !important;
+  caret-color: #0A0A0B !important;
+}
+.admin-light input::placeholder,
+.admin-light textarea::placeholder { color: #94a3b8 !important; }
+.admin-light select option { background-color: #ffffff !important; color: #0A0A0B !important; }
+
+/* The custom .admin-input (Integrations panel) */
+.admin-light .admin-input {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0A0A0B !important;
+}
+
+/* Pre/code diff blocks in the audit log */
+.admin-light pre.bg-gray-900 { background-color: #f8fafc !important; color: #334155 !important; }
+
+/* Brutalist sharp corners to match the customer dashboard (keep pills/dots round) */
+.admin-light .rounded,
+.admin-light .rounded-md,
+.admin-light .rounded-lg,
+.admin-light .rounded-xl { border-radius: 0 !important; }
+
+/* Soften heavy shadows -> portal uses flat bordered surfaces */
+.admin-light .shadow-2xl,
+.admin-light .shadow-xl,
+.admin-light .shadow-lg { box-shadow: none !important; }
+
+/* Panel sticky headers -> clean white bar like the portal top bar */
+.admin-light header.bg-gray-800,
+.admin-light .bg-gray-800.border-b { background-color: #ffffff !important; border-color: #e5e7eb !important; }
+
+/* Subtle hover on list rows */
+.admin-light .hover\:bg-gray-50:hover { background-color: #f8fafc !important; }
+
+/* ── Extra coverage: older panels use bg-black / white-opacity / slate / blue.
+   Remap them to the same light + red language as the customer dashboard. ── */
+
+/* Black / white-opacity surfaces (Stats, Homepage panels) */
+.admin-light .bg-black { background-color: transparent !important; }
+.admin-light .bg-white\/5,
+.admin-light .bg-white\/10,
+.admin-light .bg-white\/\[0\.03\] { background-color: #ffffff !important; }
+.admin-light .border-white\/10,
+.admin-light .border-white\/5,
+.admin-light .border-white\/20 { border-color: #e5e7eb !important; }
+.admin-light .hover\:bg-white\/10:hover { background-color: #f1f5f9 !important; }
+
+/* Big top padding (meant to clear the public navbar) not needed inside admin */
+.admin-light .pt-32 { padding-top: 1.5rem !important; }
+
+/* Slate palette (Locations panel) -> light */
+.admin-light .bg-slate-950,
+.admin-light .bg-slate-900 { background-color: transparent !important; }
+.admin-light .bg-slate-800,
+.admin-light .bg-slate-800\/50 { background-color: #ffffff !important; }
+.admin-light .bg-slate-700,
+.admin-light .bg-slate-600 { background-color: #f1f5f9 !important; }
+.admin-light .border-slate-600,
+.admin-light .border-slate-700,
+.admin-light .border-slate-800 { border-color: #e5e7eb !important; }
+.admin-light .text-slate-300 { color: #334155 !important; }
+.admin-light .text-slate-400 { color: #64748b !important; }
+.admin-light .text-slate-500 { color: #94a3b8 !important; }
+.admin-light .hover\:bg-slate-800:hover,
+.admin-light .hover\:bg-slate-800\/50:hover,
+.admin-light .hover\:bg-slate-500:hover,
+.admin-light .hover\:bg-slate-600:hover { background-color: #f1f5f9 !important; }
+.admin-light input.bg-slate-950,
+.admin-light input.bg-slate-900,
+.admin-light .bg-slate-950 { background-color: #ffffff !important; }
+
+/* Locations page background gradient -> flat light */
+.admin-light .bg-gradient-to-br.from-slate-950 { background-image: none !important; background-color: transparent !important; }
+
+/* Blue accents -> brand red (Locations uses blue) */
+.admin-light .text-blue-400,
+.admin-light .text-blue-500 { color: #F20732 !important; }
+.admin-light .border-blue-500,
+.admin-light .border-blue-600 { border-color: #F20732 !important; }
+.admin-light .focus\:border-blue-500:focus { border-color: #F20732 !important; }
+.admin-light .bg-blue-600,
+.admin-light .bg-blue-700 { background-color: #F20732 !important; }
+/* Blue gradient buttons -> red gradient */
+.admin-light .from-blue-600 { --tw-gradient-from: #F20732 var(--tw-gradient-from-position) !important; --tw-gradient-to: rgb(242 7 50 / 0) var(--tw-gradient-to-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.admin-light .to-blue-700,
+.admin-light .to-blue-800 { --tw-gradient-to: #C00628 var(--tw-gradient-to-position) !important; }
+.admin-light .hover\:from-blue-700:hover { --tw-gradient-from: #C00628 var(--tw-gradient-from-position) !important; --tw-gradient-to: rgb(192 6 40 / 0) var(--tw-gradient-to-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.admin-light .hover\:to-blue-800:hover { --tw-gradient-to: #C00628 var(--tw-gradient-to-position) !important; }
+.admin-light .shadow-blue-500\/20 { box-shadow: none !important; }
+
+/* Slate gradient stops (Locations active tabs) -> light */
+.admin-light .from-slate-800 { --tw-gradient-from: #ffffff var(--tw-gradient-from-position) !important; --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position) !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important; }
+.admin-light .to-slate-900 { --tw-gradient-to: #f1f5f9 var(--tw-gradient-to-position) !important; }
+.admin-light .focus\:ring-blue-500\/20:focus { --tw-ring-color: rgb(242 7 50 / 0.2) !important; }
+.admin-light .ring-blue-500 { --tw-ring-color: #F20732 !important; }

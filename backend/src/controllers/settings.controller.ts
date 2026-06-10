@@ -1,5 +1,8 @@
 import { Request, Response } from 'express';
 import { Settings, getSettingsWithSecrets } from '../models/settings.model';
+import ixpManager from '../services/ixpManager.service';
+import zohoBooks from '../services/zohoBooks.service';
+import { logAudit } from '../services/audit.service';
 
 // Mask a secret, revealing only the last 4 chars
 const mask = (secret?: string): string =>
@@ -30,6 +33,22 @@ export const getSettings = async (_req: Request, res: Response): Promise<void> =
           url: doc.zabbix.url,
           hasApiToken: !!doc.zabbix.apiToken,
           apiTokenMask: mask(doc.zabbix.apiToken),
+        },
+        ixpManager: {
+          enabled: doc.ixpManager.enabled,
+          url: doc.ixpManager.url,
+          hasApiKey: !!doc.ixpManager.apiKey,
+          apiKeyMask: mask(doc.ixpManager.apiKey),
+        },
+        zohoBooks: {
+          enabled: doc.zohoBooks.enabled,
+          region: doc.zohoBooks.region,
+          organizationId: doc.zohoBooks.organizationId,
+          clientId: doc.zohoBooks.clientId,
+          hasClientSecret: !!doc.zohoBooks.clientSecret,
+          clientSecretMask: mask(doc.zohoBooks.clientSecret),
+          hasRefreshToken: !!doc.zohoBooks.refreshToken,
+          refreshTokenMask: mask(doc.zohoBooks.refreshToken),
         },
         updatedAt: doc.updatedAt,
       },
@@ -66,7 +85,28 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
         doc.zabbix.apiToken = String(zabbix.apiToken).trim();
     }
 
+    const { ixpManager } = req.body;
+    if (ixpManager) {
+      if (ixpManager.enabled !== undefined) doc.ixpManager.enabled = !!ixpManager.enabled;
+      if (ixpManager.url !== undefined) doc.ixpManager.url = String(ixpManager.url).trim().replace(/\/$/, '');
+      if (ixpManager.apiKey !== undefined && !isMasked(ixpManager.apiKey))
+        doc.ixpManager.apiKey = String(ixpManager.apiKey).trim();
+    }
+
+    const { zohoBooks } = req.body;
+    if (zohoBooks) {
+      if (zohoBooks.enabled !== undefined) doc.zohoBooks.enabled = !!zohoBooks.enabled;
+      if (zohoBooks.region !== undefined) doc.zohoBooks.region = String(zohoBooks.region).trim() || 'com';
+      if (zohoBooks.organizationId !== undefined) doc.zohoBooks.organizationId = String(zohoBooks.organizationId).trim();
+      if (zohoBooks.clientId !== undefined) doc.zohoBooks.clientId = String(zohoBooks.clientId).trim();
+      if (zohoBooks.clientSecret !== undefined && !isMasked(zohoBooks.clientSecret))
+        doc.zohoBooks.clientSecret = String(zohoBooks.clientSecret).trim();
+      if (zohoBooks.refreshToken !== undefined && !isMasked(zohoBooks.refreshToken))
+        doc.zohoBooks.refreshToken = String(zohoBooks.refreshToken).trim();
+    }
+
     await doc.save();
+    await logAudit({ actor: req.user?.email, action: 'settings.update', resource: 'Settings' });
 
     res.json({ success: true, message: 'Settings updated successfully' });
   } catch (error) {
@@ -204,4 +244,61 @@ export const testZabbix = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-export default { getSettings, updateSettings, testGrafana, testZabbix };
+/**
+ * POST /api/settings/test/ixpmanager  (admin)
+ */
+export const testIxpManager = async (req: Request, res: Response): Promise<void> => {
+  try {
+    let { url, apiKey } = req.body as { url?: string; apiKey?: string };
+    if (!url || isMasked(apiKey)) {
+      const doc = await getSettingsWithSecrets();
+      url = url || doc.ixpManager.url;
+      if (isMasked(apiKey)) apiKey = doc.ixpManager.apiKey;
+    }
+    if (!url || !apiKey) {
+      res.json({ success: false, error: 'IXP Manager URL and API key are required' });
+      return;
+    }
+    const result = await ixpManager.testConnection(url, apiKey);
+    if (result.ok) {
+      res.json({
+        success: true,
+        data: { connected: true, customers: result.data?.customers },
+        message: 'Connected to IXP Manager successfully',
+      });
+    } else {
+      res.json({ success: false, error: result.error || 'Connection failed' });
+    }
+  } catch (error: any) {
+    console.error('Test IXP Manager error:', error);
+    res.json({ success: false, error: 'Failed to reach IXP Manager' });
+  }
+};
+
+/**
+ * POST /api/settings/test/zoho  (admin)
+ */
+export const testZoho = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { region, organizationId, clientId, clientSecret, refreshToken } = req.body as any;
+    const doc = await getSettingsWithSecrets();
+    const override: any = {
+      region: region || doc.zohoBooks.region,
+      organizationId: organizationId || doc.zohoBooks.organizationId,
+      clientId: clientId || doc.zohoBooks.clientId,
+      clientSecret: isMasked(clientSecret) ? doc.zohoBooks.clientSecret : clientSecret,
+      refreshToken: isMasked(refreshToken) ? doc.zohoBooks.refreshToken : refreshToken,
+    };
+    const result = await zohoBooks.testConnection(override);
+    if (result.ok) {
+      res.json({ success: true, data: { connected: true, orgName: result.orgName }, message: 'Connected to Zoho Books' });
+    } else {
+      res.json({ success: false, error: result.error || 'Connection failed' });
+    }
+  } catch (error) {
+    console.error('Test Zoho error:', error);
+    res.json({ success: false, error: 'Failed to reach Zoho Books' });
+  }
+};
+
+export default { getSettings, updateSettings, testGrafana, testZabbix, testIxpManager, testZoho };

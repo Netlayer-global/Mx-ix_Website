@@ -893,8 +893,8 @@ function AppContent() {
 
       <div className="fixed inset-0 z-0 opacity-20 pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-200 via-transparent to-transparent"></div>
 
-      {/* Hide navigation on admin page - admin has its own header */}
-      {page !== 'admin' && <Navigation currentPage={page} setPage={handleSetPage} />}
+      {/* Hide navigation on admin & portal pages - they have their own chrome */}
+      {page !== 'admin' && page !== 'portal' && <Navigation currentPage={page} setPage={handleSetPage} />}
 
       <main className="relative z-10 min-h-screen">
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -902,8 +902,8 @@ function AppContent() {
         </Suspense>
       </main>
 
-      {/* Hide footer on admin page */}
-      {page !== 'admin' && <Footer setPage={handleSetPage} />}
+      {/* Hide footer on admin & portal pages */}
+      {page !== 'admin' && page !== 'portal' && <Footer setPage={handleSetPage} />}
     </div>
   );
 }

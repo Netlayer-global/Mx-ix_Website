@@ -1,11 +1,13 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+export type AdminRole = 'super-admin' | 'admin' | 'noc' | 'billing' | 'support' | 'editor';
+
 export interface IUserDocument extends Document {
   email: string;
   password: string;
   name: string;
-  role: 'admin' | 'editor';
+  role: AdminRole;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -34,7 +36,7 @@ const userSchema = new Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'editor'],
+      enum: ['super-admin', 'admin', 'noc', 'billing', 'support', 'editor'],
       default: 'admin',
     },
     isActive: {

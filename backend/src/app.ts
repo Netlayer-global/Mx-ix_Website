@@ -9,6 +9,8 @@ import { connectDatabase } from './config/database';
 import routes from './routes';
 import { errorMiddleware, notFoundMiddleware } from './middleware';
 import { seedDatabase } from './services/seed.service';
+import { evaluateAllAlerts } from './services/alert.service';
+import { sendWeeklyDigests } from './services/digest.service';
 
 const app = express();
 
@@ -54,6 +56,14 @@ const startServer = async () => {
 
     // Seed database with default data
     await seedDatabase();
+
+    // Background jobs: threshold-alert sweep (every 5 min) + weekly digest (every 7 days).
+    setInterval(() => {
+      evaluateAllAlerts().catch((e) => console.error('[Alerts] interval error', e));
+    }, 5 * 60 * 1000);
+    setInterval(() => {
+      sendWeeklyDigests().catch((e) => console.error('[Digest] interval error', e));
+    }, 7 * 24 * 60 * 60 * 1000);
 
     // Start listening
     app.listen(config.port, () => {

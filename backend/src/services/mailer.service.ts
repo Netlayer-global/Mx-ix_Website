@@ -39,4 +39,25 @@ export const sendBulkEmail = async (recipients: string[], subject: string, html:
   }
 };
 
-export default { sendBulkEmail };
+/**
+ * Send an email to a single recipient. Returns false (and logs the body) when
+ * SMTP isn't configured, so flows like password reset still work in dev.
+ */
+export const sendEmail = async (to: string, subject: string, html: string): Promise<boolean> => {
+  const tx = getTransporter();
+  if (!tx) {
+    console.log(`[Mailer] SMTP not configured — would email ${to}: "${subject}"`);
+    console.log(`[Mailer] (dev) body:\n${html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()}`);
+    return false;
+  }
+  try {
+    await tx.sendMail({ from: config.smtpFrom, to, subject, html });
+    console.log(`[Mailer] Sent "${subject}" to ${to}`);
+    return true;
+  } catch (err) {
+    console.error('[Mailer] Failed to send:', err);
+    return false;
+  }
+};
+
+export default { sendBulkEmail, sendEmail };

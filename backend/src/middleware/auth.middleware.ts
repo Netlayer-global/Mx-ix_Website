@@ -103,4 +103,23 @@ export const adminOnlyMiddleware = (
   next();
 };
 
+/**
+ * Restrict an admin route to specific roles. 'admin' and 'super-admin' always
+ * pass (full access). Used for role-based admin sections (Phase 6).
+ */
+export const adminRoleMiddleware =
+  (...roles: string[]) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    const role = req.user?.role;
+    if (!role) {
+      res.status(403).json({ success: false, error: 'Admin access required.' });
+      return;
+    }
+    if (role === 'admin' || role === 'super-admin' || roles.includes(role)) {
+      next();
+      return;
+    }
+    res.status(403).json({ success: false, error: 'Insufficient admin permissions.' });
+  };
+
 export default authMiddleware;

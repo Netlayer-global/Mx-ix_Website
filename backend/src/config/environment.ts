@@ -32,6 +32,11 @@ export const config = {
   // Alice-LG Looking Glass API
   lgApiUrl: process.env.LG_API_URL || 'http://103.139.191.168/api/v1',
 
+  // Alice-LG config management (Option A): when set, admin "Apply" writes the
+  // generated alice.conf to this path and runs the reload command.
+  aliceConfigPath: process.env.ALICE_CONFIG_PATH || '',
+  aliceReloadCmd: process.env.ALICE_RELOAD_CMD || '',
+
   // SMTP (optional — for status subscriber notifications)
   smtpHost: process.env.SMTP_HOST || '',
   smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
