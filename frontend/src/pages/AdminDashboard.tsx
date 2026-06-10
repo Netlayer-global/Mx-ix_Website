@@ -11,7 +11,8 @@ import {
   Loader2,
   Globe,
   Plug,
-  Activity
+  Activity,
+  Users
 } from 'lucide-react';
 import { authApi, servicesApi, locationsApi } from '../services/api';
 import ServicesAdminPanel from './ServicesAdminPanel';
@@ -21,8 +22,9 @@ import StatsAdminPanel from './StatsAdminPanel';
 import HomepageAdminPanel from './HomepageAdminPanel';
 import IntegrationsAdminPanel from './IntegrationsAdminPanel';
 import StatusAdminPanel from './StatusAdminPanel';
+import MembersAdminPanel from './MembersAdminPanel';
 
-type AdminSection = 'dashboard' | 'services' | 'locations' | 'stats' | 'contacts' | 'homepage' | 'integrations' | 'status';
+type AdminSection = 'dashboard' | 'services' | 'locations' | 'stats' | 'contacts' | 'homepage' | 'integrations' | 'status' | 'members';
 
 const AdminDashboard: React.FC = () => {
   // Auth state
@@ -183,6 +185,8 @@ const AdminDashboard: React.FC = () => {
         return <IntegrationsAdminPanel embedded onBack={() => setCurrentSection('dashboard')} />;
       case 'status':
         return <StatusAdminPanel embedded onBack={() => setCurrentSection('dashboard')} />;
+      case 'members':
+        return <MembersAdminPanel embedded onBack={() => setCurrentSection('dashboard')} />;
       default:
         return null;
     }
@@ -256,6 +260,15 @@ const AdminDashboard: React.FC = () => {
       count: null,
       countLabel: '',
       color: 'from-emerald-500 to-emerald-600',
+    },
+    {
+      id: 'members' as AdminSection,
+      title: 'Members',
+      description: 'Manage the public member directory',
+      icon: Users,
+      count: null,
+      countLabel: '',
+      color: 'from-indigo-500 to-indigo-600',
     },
   ];
 

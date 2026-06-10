@@ -559,6 +559,36 @@ export interface SystemStatus {
   incidents: IncidentItem[];
 }
 
+// ============================================
+// Members (public directory, admin-managed)
+// ============================================
+export type MemberType = 'ISP' | 'Content' | 'Cloud' | 'CDN' | 'Enterprise' | 'Academic' | 'Other';
+export type MemberPolicy = 'Open' | 'Selective' | 'Restrictive';
+
+export interface MemberItem {
+  _id: string;
+  name: string;
+  asn?: number;
+  logo?: string;
+  website?: string;
+  type: MemberType;
+  peeringPolicy: MemberPolicy;
+  capacity?: string;
+  locations: string[];
+  joinedDate?: string | null;
+  featured: boolean;
+  order: number;
+  isActive: boolean;
+}
+
+export const membersApi = {
+  getAll: () => apiCall<MemberItem[]>('/members'),
+  adminGetAll: () => apiCall<MemberItem[]>('/members/all'),
+  create: (data: Partial<MemberItem>) => apiCall<MemberItem>('/members', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<MemberItem>) => apiCall<MemberItem>(`/members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => apiCall<void>(`/members/${id}`, { method: 'DELETE' }),
+};
+
 export const statusApi = {
   get: () => apiCall<SystemStatus>('/status'),
   subscribe: (email: string) =>
@@ -591,5 +621,6 @@ export default {
   settings: settingsApi,
   lookingGlass: lookingGlassApi,
   status: statusApi,
+  members: membersApi,
 };
 

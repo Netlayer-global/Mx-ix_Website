@@ -11,6 +11,7 @@ import statsRoutes from './stats.routes';
 import settingsRoutes from './settings.routes';
 import lgRoutes from './lg.routes';
 import statusRoutes from './status.routes';
+import membersRoutes from './members.routes';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/stats', statsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/lg', lgRoutes);
 router.use('/status', statusRoutes);
+router.use('/members', membersRoutes);
 
 export default router;

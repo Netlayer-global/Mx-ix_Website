@@ -8,6 +8,8 @@ import Ticker from './components/Ticker';
 import Capabilities from './components/Capabilities';
 import RealTimeCapacity from './components/RealTimeCapacity';
 import HowPeering from './components/HowPeering';
+import FAQ from './components/FAQ';
+import CTABand from './components/CTABand';
 import { useMagnetic, useParallax } from './shared/interactions';
 import { AdminProvider, useAdmin } from './contexts/AdminContext';
 
@@ -23,7 +25,9 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const LookingGlassPage = lazy(() => import('./pages/LookingGlassPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 const NetworksPage = lazy(() => import('./pages/NetworksPage'));
+const MembersPage = lazy(() => import('./pages/MembersPage'));
 const StatusPage = lazy(() => import('./pages/StatusPage'));
+const PortalPage = lazy(() => import('./pages/PortalPage'));
 const GlobalFabric = lazy(() => import('./components/GlobalFabric'));
 const HeroNetworkMap = lazy(() => import('./components/HeroNetworkMap'));
 
@@ -34,12 +38,14 @@ const PATH_BY_PAGE: Record<string, string> = {
   services: '/services',
   locations: '/locations',
   networks: '/networks',
+  members: '/members',
   stats: '/stats',
   pricing: '/pricing',
   contact: '/contact',
   technical: '/technical',
   lg: '/looking-glass',
   status: '/status',
+  portal: '/portal',
   admin: '/admin',
 };
 
@@ -49,12 +55,14 @@ const PAGE_BY_PATH: Record<string, string> = {
   services: 'services',
   locations: 'locations',
   networks: 'networks',
+  members: 'members',
   stats: 'stats',
   pricing: 'pricing',
   contact: 'contact',
   technical: 'technical',
   'looking-glass': 'lg',
   status: 'status',
+  portal: 'portal',
   admin: 'admin',
 };
 
@@ -64,12 +72,14 @@ const PAGE_TITLES: Record<string, string> = {
   services: 'Services — Peering, Cloud Connect & DDoS Protection | MX-IX',
   locations: 'Locations — MX-IX Points of Presence',
   networks: 'Connected Networks — MX-IX Members',
+  members: 'Members — MX-IX Connected Networks',
   stats: 'Traffic Stats — MX-IX',
   pricing: 'Pricing — MX-IX Port & Peering Pricing',
   contact: 'Request a Port — MX-IX',
   technical: 'Technical Requirements — MX-IX',
   lg: 'Looking Glass — MX-IX Route Servers',
   status: 'System Status — MX-IX',
+  portal: 'Member Portal — MX-IX',
 };
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
@@ -78,12 +88,14 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   services: 'Public and private peering, cloud connectivity and DDoS protection on the MX-IX fabric — everything your network needs to interconnect.',
   locations: 'MX-IX points of presence and data centers. Explore route servers, connected ASNs and enabled sites across our locations.',
   networks: 'Browse the networks peering at MX-IX — ASNs, peering policies and session status across our route servers.',
+  members: 'The networks connected to MX-IX — ISPs, content, cloud and enterprise networks peering across the exchange.',
   stats: 'Real-time and historical traffic statistics for the MX-IX Internet Exchange.',
   pricing: 'Simple, scalable MX-IX port pricing from 1G to 400G. One connection unlocks the entire peering ecosystem — no traffic charges.',
   contact: 'Request a port at MX-IX. Tell us about your network and our team will share availability and pricing.',
   technical: 'Technical requirements, BGP configuration and operational standards for connecting to the MX-IX shared fabric.',
   lg: 'MX-IX Looking Glass — inspect BGP sessions, route servers and routing tables across the exchange in real time.',
   status: 'Live operational status of MX-IX route servers, peering fabric and locations, plus incident history.',
+  portal: 'MX-IX Member Portal — manage your ports, peering sessions, traffic and account.',
 };
 
 // Update document title + SEO meta tags for the current page
@@ -319,7 +331,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
     { id: 'about', label: 'ABOUT' },
     { id: 'services', label: 'SERVICES' },
     { id: 'locations', label: 'LOCATIONS' },
-    { id: 'networks', label: 'NETWORKS' },
+    { id: 'members', label: 'MEMBERS' },
     { id: 'stats', label: 'STATS' },
   ];
 
@@ -433,7 +445,13 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
         </div>
 
         {/* Desktop Connect Button */}
-        <div className="hidden lg:flex flex-shrink-0 items-center justify-end gap-6 z-50 min-w-[200px]">
+        <div className="hidden lg:flex flex-shrink-0 items-center justify-end gap-4 z-50 min-w-[200px]">
+          <button
+            onClick={() => setPage('portal')}
+            className={`hover-trigger font-mono text-label-sm font-bold tracking-mono uppercase px-5 py-3 border transition-colors ${isDarkNav && !scrolled ? 'border-white/30 text-white hover:bg-white hover:text-black' : 'border-gray-300 text-black hover:border-black'}`}
+          >
+            Member Login
+          </button>
           <button
             ref={connectMagneticRef}
             onClick={() => setPage('contact')}
@@ -516,6 +534,12 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
               </nav>
 
               {/* Connect Button */}
+              <button
+                onClick={() => handleNavClick('portal')}
+                className="w-full mb-3 border border-gray-300 text-black px-6 py-4 font-mono text-xs font-bold tracking-[0.2em] hover:border-black transition-colors flex items-center justify-center gap-3 uppercase rounded-lg"
+              >
+                Member Login
+              </button>
               <button
                 onClick={() => handleNavClick('contact')}
                 className="w-full bg-[#F20732] text-white px-6 py-4 font-mono text-xs font-bold tracking-[0.2em] hover:bg-black transition-colors flex items-center justify-center gap-3 group shadow-lg shadow-[#F20732]/20 uppercase rounded-lg"
@@ -820,6 +844,8 @@ function AppContent() {
             <Capabilities />
             <HowPeering />
             <Suspense fallback={null}><GlobalFabric /></Suspense>
+            <FAQ />
+            <CTABand onNavigate={handleSetPage} />
           </>
         );
       case 'about':
@@ -834,6 +860,8 @@ function AppContent() {
         return <LocationsPage preSelectedLocation={selectedLocationId} preSelectedSection={selectedSection} />;
       case 'networks':
         return <NetworksPage onNavigate={handleSetPage} />;
+      case 'members':
+        return <MembersPage onNavigate={handleSetPage} />;
       case 'stats':
         return <StatsPage />;
       case 'contact':
@@ -846,6 +874,8 @@ function AppContent() {
         return <LookingGlassPage />;
       case 'status':
         return <StatusPage />;
+      case 'portal':
+        return <PortalPage onNavigate={handleSetPage} />;
       case 'admin':
         return <AdminDashboard />;
       default:
