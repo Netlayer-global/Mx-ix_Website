@@ -77,6 +77,20 @@ const PricingPage: React.FC<PricingPageProps> = ({ onNavigate }) => {
             Pay only for the port you need — from 1G to 400G. One connection unlocks the entire
             MX-IX peering ecosystem. No traffic charges, no lock-in.
           </p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10 border border-white/10 mt-12">
+            {[
+              { v: 'Flat', l: 'Port-based pricing' },
+              { v: '$0', l: 'Per-bit / traffic fees' },
+              { v: '1G–400G', l: 'Port speeds' },
+              { v: 'No', l: 'Lock-in contracts' },
+            ].map((s) => (
+              <div key={s.l} className="bg-ink p-5">
+                <div className="text-3xl md:text-4xl font-light tracking-tighter">{s.v}</div>
+                <div className="font-mono text-label-sm tracking-label uppercase text-gray-400 mt-1">{s.l}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -97,6 +111,9 @@ const PricingPage: React.FC<PricingPageProps> = ({ onNavigate }) => {
               {tiers.map((t, i) => (
                 <div key={t.portSpeed} className={`group relative bg-white p-8 hover:bg-gray-50 transition-colors overflow-hidden ${i === 1 ? 'ring-1 ring-[#F20732]/30' : ''}`}>
                   <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] -translate-x-full group-hover:translate-x-0 transition-transform duration-500"></div>
+                  {i === 1 && (
+                    <span className="absolute top-3 right-3 font-mono text-[9px] font-bold tracking-label uppercase bg-[#F20732] text-white px-2 py-1">Popular</span>
+                  )}
                   <div className="font-mono text-label-sm tracking-label uppercase text-gray-400 mb-2">Port Speed</div>
                   <div className="text-3xl font-black tracking-tighter text-black mb-6">{t.portSpeed}</div>
                   <div className="text-3xl font-light tracking-tighter text-black tabular-nums">{fmt(t.currency, t.monthly)}</div>
@@ -135,6 +152,63 @@ const PricingPage: React.FC<PricingPageProps> = ({ onNavigate }) => {
               <div key={item} className="flex items-start gap-3">
                 <Check className="w-5 h-5 text-[#F20732] flex-shrink-0 mt-0.5" />
                 <span className="text-sm text-gray-700">{item}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* PEERING VS TRANSIT */}
+      <section className="relative bg-gray-50 py-16 border-t border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732] mb-2 block">// Peering vs Transit</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-ink mb-3">Why a flat port beats metered transit</h2>
+          <p className="text-gray-500 max-w-2xl mb-10">Transit bills you for every bit at the 95th percentile. A peering port is a fixed cost — the more you grow, the more you save.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-gray-200 border border-gray-200">
+            <div className="bg-white p-8">
+              <div className="font-mono text-label-sm tracking-label uppercase text-[#F20732] mb-4">MX-IX Peering</div>
+              <ul className="space-y-3">
+                {['Fixed monthly port cost', 'No per-megabit charges', 'Direct, low-latency paths', 'Reach every member on one port', 'Predictable as you scale'].map((x) => (
+                  <li key={x} className="flex items-start gap-3">
+                    <Check className="w-4 h-4 text-[#F20732] flex-shrink-0 mt-1" />
+                    <span className="text-sm text-gray-700">{x}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-white p-8">
+              <div className="font-mono text-label-sm tracking-label uppercase text-gray-400 mb-4">IP Transit</div>
+              <ul className="space-y-3">
+                {['Billed on 95th-percentile usage', 'Costs rise with every bit', 'Longer, indirect paths', 'Single upstream dependency', 'Unpredictable monthly spend'].map((x) => (
+                  <li key={x} className="flex items-start gap-3">
+                    <span className="w-4 h-4 flex-shrink-0 mt-1 flex items-center justify-center text-gray-400">—</span>
+                    <span className="text-sm text-gray-500">{x}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="relative bg-white py-16 border-t border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 grid lg:grid-cols-3 gap-10">
+          <div>
+            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// FAQ</span>
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-ink mt-2 mb-4">Pricing questions</h2>
+            <p className="text-gray-500 leading-relaxed">Clear, upfront answers about what you pay and what you get.</p>
+          </div>
+          <div className="lg:col-span-2 border border-gray-200 divide-y divide-gray-200">
+            {[
+              { q: 'Are there any traffic charges?', a: 'No. You pay a flat monthly fee for your port regardless of how much traffic you exchange. There are no per-megabit or 95th-percentile charges.' },
+              { q: 'Is there a setup or cross-connect fee?', a: 'A one-time port setup fee may apply depending on location. Cross-connect costs are billed by your data center. We confirm exact figures in your quote.' },
+              { q: 'Can I upgrade my port later?', a: 'Yes. You can scale from 1G up to 400G as your traffic grows — contact us and we will arrange the upgrade with minimal disruption.' },
+              { q: 'Do prices vary by location?', a: 'Slightly. Rates reflect local data-center and facility costs. See per-location pricing on the Locations page or request a tailored quote.' },
+            ].map((f, i) => (
+              <div key={i} className="p-6">
+                <div className="font-bold text-ink mb-1.5">{f.q}</div>
+                <p className="text-sm text-gray-600 leading-relaxed">{f.a}</p>
               </div>
             ))}
           </div>

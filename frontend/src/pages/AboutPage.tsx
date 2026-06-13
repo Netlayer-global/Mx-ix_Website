@@ -1,159 +1,198 @@
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
+import {
+  ArrowRight,
+  Network,
+  Zap,
+  ShieldCheck,
+  Scale,
+  Activity,
+  Globe2,
+  Users,
+} from 'lucide-react';
+import { useAdmin } from '../contexts/AdminContext';
 
-const AboutPage: React.FC = () => {
+const isLive = (s: string) => s === 'active' || s === 'current';
+
+interface AboutPageProps {
+  onNavigate?: (page: string) => void;
+}
+
+const goToContact = (onNavigate?: (p: string) => void) => {
+  if (onNavigate) return onNavigate('contact');
+  window.history.pushState({}, '', '/contact');
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
+
+const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
+  const { locations } = useAdmin();
+
+  useEffect(() => {
+    document.body.classList.add('dark-nav');
+    return () => document.body.classList.remove('dark-nav');
+  }, []);
+
+  const stats = useMemo(() => {
+    const live = locations.filter((l) => isLive(l.status));
+    const countries = new Set(locations.map((l) => l.country).filter(Boolean));
+    return {
+      cities: live.length || 2,
+      countries: countries.size || 2,
+    };
+  }, [locations]);
+
+  const heroStats = [
+    { v: '2026', l: 'Founded' },
+    { v: `${stats.countries}+`, l: 'Countries' },
+    { v: `${stats.cities}+`, l: 'Live Cities' },
+    { v: '400G', l: 'Max Port Speed' },
+  ];
+
   return (
-    <section className="relative min-h-screen pt-24 md:pt-32 pb-12 md:pb-20 bg-white">
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 relative z-10">
-        {/* Header */}
-        <div className="mb-16">
-          <div className="inline-flex items-center gap-3 mb-6">
-            <div className="w-2 h-2 rounded-full bg-[#F20732] animate-pulse"></div>
-            <span className="font-mono text-xs font-bold tracking-[0.2em] text-[#F20732] uppercase">
-              Our Story
-            </span>
-          </div>
-          
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-black leading-tight tracking-tighter mb-6 text-black">
+    <div className="min-h-screen bg-white text-ink">
+      {/* Hero */}
+      <section className="relative bg-ink text-white overflow-hidden pt-36 md:pt-44 pb-20">
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#F20732]/15 blur-[120px]" />
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 relative z-10">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Our Story</span>
+          <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[0.95] mt-4 mb-6">
             ABOUT <span className="text-[#F20732]">MX-IX</span>
           </h1>
-          
-          <p className="max-w-2xl text-gray-500 text-base md:text-lg leading-relaxed border-l-2 border-gray-100 pl-4 md:pl-6">
+          <p className="text-gray-400 text-base md:text-lg leading-relaxed max-w-2xl border-l-2 border-white/10 pl-6">
             MX-IX is a carrier- and data-center-neutral Internet Exchange where networks meet to
             exchange traffic directly — improving performance, cutting transit costs and keeping
             local traffic local.
           </p>
-        </div>
 
-        {/* Content sections */}
-        <div className="space-y-20">
-          {/* Mission */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-4xl font-black tracking-tighter mb-6 text-black">
-                Our Mission
-              </h2>
-              <p className="text-gray-600 text-lg leading-relaxed mb-4">
-                MX-IX exists to make interconnection simple, open and accessible. By bringing ISPs,
-                content providers, cloud platforms and enterprises onto a single neutral fabric, we
-                let networks peer directly instead of hauling traffic across expensive, distant
-                transit paths.
-              </p>
-              <p className="text-gray-600 text-lg leading-relaxed">
-                Connect once and reach the entire MX-IX ecosystem. From a regional ISP to a global
-                content network, our route servers and high-capacity ports make peering effortless
-                and scalable — from 1G all the way to 400G.
-              </p>
-            </div>
-            <div className="bg-gray-50 border border-gray-200 p-8 md:p-12 relative group hover:border-black transition-all duration-300">
-              <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
-              <div className="space-y-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10 border border-white/10 mt-12">
+            {heroStats.map((s) => (
+              <div key={s.l} className="bg-ink p-5">
+                <div className="text-3xl md:text-4xl font-light tracking-tighter tabular-nums">{s.v}</div>
+                <div className="font-mono text-label-sm tracking-label uppercase text-gray-400 mt-1">{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Mission */}
+      <section className="border-b border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16 grid lg:grid-cols-3 gap-10 items-start">
+          <div className="lg:col-span-2">
+            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Mission</span>
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-6">Make interconnection simple, open and accessible</h2>
+            <p className="text-gray-600 text-lg leading-relaxed mb-4">
+              By bringing ISPs, content providers, cloud platforms and enterprises onto a single
+              neutral fabric, we let networks peer directly instead of hauling traffic across
+              expensive, distant transit paths.
+            </p>
+            <p className="text-gray-600 text-lg leading-relaxed">
+              Connect once and reach the entire MX-IX ecosystem. From a regional ISP to a global
+              content network, our route servers and high-capacity ports make peering effortless and
+              scalable — from 1G all the way to 400G.
+            </p>
+          </div>
+          <div className="border border-gray-200 divide-y divide-gray-200">
+            {[
+              { icon: Globe2, t: 'Neutral fabric', d: 'No carrier or DC lock-in.' },
+              { icon: Network, t: 'One port, full reach', d: 'Peer with every member.' },
+              { icon: ShieldCheck, t: 'Secure routing', d: 'RPKI + IRR filtered.' },
+            ].map((f) => (
+              <div key={f.t} className="flex items-start gap-4 p-5">
+                <f.icon className="w-5 h-5 text-[#F20732] flex-shrink-0 mt-0.5" />
                 <div>
-                  <div className="text-5xl font-light tracking-tighter text-black mb-2">2026</div>
-                  <div className="font-mono text-xs text-gray-400 uppercase tracking-widest">Founded</div>
-                </div>
-                <div>
-                  <div className="text-5xl font-light tracking-tighter text-black mb-2">2+</div>
-                  <div className="font-mono text-xs text-gray-400 uppercase tracking-widest">Countries</div>
-                </div>
-                <div>
-                  <div className="text-5xl font-light tracking-tighter text-black mb-2">5000+</div>
-                  <div className="font-mono text-xs text-gray-400 uppercase tracking-widest">Enterprise Clients</div>
+                  <div className="font-bold text-ink">{f.t}</div>
+                  <div className="text-sm text-gray-500">{f.d}</div>
                 </div>
               </div>
-            </div>
+            ))}
           </div>
+        </div>
+      </section>
 
-          {/* Why Peer */}
+      {/* Why peer */}
+      <section className="border-b border-gray-200 bg-gray-50">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Why Peer at MX-IX</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">The case for direct interconnection</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
+            {[
+              { icon: Network, t: 'Connect once, reach many', d: 'A single port to our route servers gives you multilateral peering with every network on the exchange — no session-by-session negotiation.' },
+              { icon: Zap, t: 'Lower latency & cost', d: 'Keep local traffic local. Direct peering shortens paths, reduces round-trip times and cuts expensive IP transit spend.' },
+              { icon: ShieldCheck, t: 'Resilient & protected', d: 'Redundant route servers, 24/7 NOC monitoring and built-in blackholing keep your traffic flowing and shielded from volumetric DDoS.' },
+            ].map((c) => (
+              <div key={c.t} className="group relative bg-white p-8 overflow-hidden hover:bg-gray-50 transition-colors">
+                <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+                <c.icon className="w-8 h-8 text-[#F20732] mb-5" />
+                <h3 className="text-xl font-bold tracking-tight text-ink mb-2">{c.t}</h3>
+                <p className="text-gray-500 leading-relaxed">{c.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Journey / milestones */}
+      <section className="border-b border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Journey</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">How we're growing the regional internet</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200">
+            {[
+              { n: '01', t: 'Launch', d: 'MX-IX goes live with carrier-neutral PoPs and multilateral route servers.' },
+              { n: '02', t: 'Expand', d: 'New cities added across South Asia and the Middle East, growing reach.' },
+              { n: '03', t: 'Enrich', d: 'Cloud on-ramps, DDoS protection and a self-service member portal.' },
+              { n: '04', t: 'Scale', d: '400G-ready fabric and deeper interconnection with global networks.' },
+            ].map((m) => (
+              <div key={m.n} className="bg-white p-8">
+                <div className="text-5xl font-black tracking-tighter text-gray-200">{m.n}</div>
+                <h3 className="font-bold text-ink mt-4 mb-1.5">{m.t}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{m.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Values */}
+      <section className="bg-ink text-white relative overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-[#F20732]/15 blur-[110px]" />
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16 relative z-10">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// What We Stand For</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">Our values</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 border border-white/10">
+            {[
+              { icon: Scale, t: 'Neutrality', d: 'Carrier- and DC-neutral by design. Every network connects on equal terms.' },
+              { icon: Activity, t: 'Reliability', d: 'Redundant switching, dual route servers and 24/7 monitoring. 99.99% is the baseline.' },
+              { icon: Globe2, t: 'Openness', d: 'Transparent pricing, an open peering policy and a public looking glass.' },
+              { icon: Users, t: 'Community', d: 'We make interconnection affordable for networks of every size.' },
+            ].map((v) => (
+              <div key={v.t} className="bg-ink p-8">
+                <v.icon className="w-7 h-7 text-[#F20732] mb-4" />
+                <h3 className="text-lg font-bold mb-2">{v.t}</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">{v.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="bg-white border-t border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
           <div>
-            <h2 className="text-4xl font-black tracking-tighter mb-8 text-black">
-              Why Peer at MX-IX
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white border border-gray-200 p-6 md:p-8 hover:border-black transition-all duration-300 group relative overflow-hidden hover-trigger">
-                <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left"></div>
-                <div className="mb-4">
-                  <svg className="w-12 h-12 text-[#F20732]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-black tracking-tighter mb-3 text-black">Connect Once, Reach Many</h3>
-                <p className="text-gray-600 leading-relaxed">
-                  A single port to our route servers gives you multilateral peering with every
-                  network on the exchange — no need to negotiate sessions one by one.
-                </p>
-              </div>
-
-              <div className="bg-white border border-gray-200 p-8 hover:border-black transition-all duration-300 group relative overflow-hidden hover-trigger">
-                <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left delay-75"></div>
-                <div className="mb-4">
-                  <svg className="w-12 h-12 text-[#F20732]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-black tracking-tighter mb-3 text-black">Lower Latency &amp; Cost</h3>
-                <p className="text-gray-600 leading-relaxed">
-                  Keep local traffic local. Direct peering shortens network paths, reduces
-                  round-trip times and cuts the cost of expensive IP transit.
-                </p>
-              </div>
-
-              <div className="bg-white border border-gray-200 p-8 hover:border-black transition-all duration-300 group relative overflow-hidden hover-trigger">
-                <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-500 origin-left delay-150"></div>
-                <div className="mb-4">
-                  <svg className="w-12 h-12 text-[#F20732]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-black tracking-tighter mb-3 text-black">Resilient &amp; Protected</h3>
-                <p className="text-gray-600 leading-relaxed">
-                  Redundant route servers, 24/7 NOC monitoring and built-in blackholing keep your
-                  traffic flowing and shielded against volumetric DDoS attacks.
-                </p>
-              </div>
-            </div>
+            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Join Us</span>
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2">Become part of the fabric</h2>
+            <p className="text-gray-500 mt-2 max-w-xl">Peer at MX-IX and reach every network on the exchange with a single connection.</p>
           </div>
-
-          {/* Values */}
-          <div className="bg-ink text-white p-8 md:p-12 lg:p-16 relative overflow-hidden">
-            <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-[#F20732]/15 blur-[110px] pointer-events-none"></div>
-            <div className="relative z-10">
-              <h2 className="text-4xl font-black tracking-tighter mb-8">What We Stand For</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <h3 className="text-xl font-bold mb-3 text-[#F20732]">Neutrality</h3>
-                  <p className="text-gray-300 leading-relaxed">
-                    Carrier- and data-center-neutral by design. Every network connects on equal
-                    terms, free to peer with whomever they choose.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold mb-3 text-[#F20732]">Reliability</h3>
-                  <p className="text-gray-300 leading-relaxed">
-                    Redundant switching, dual route servers and 24/7 monitoring. 99.99% uptime is
-                    the baseline, not the target.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold mb-3 text-[#F20732]">Openness</h3>
-                  <p className="text-gray-300 leading-relaxed">
-                    Transparent pricing, an open peering policy and a public looking glass — so you
-                    always know exactly what the fabric is doing.
-                  </p>
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold mb-3 text-[#F20732]">Community</h3>
-                  <p className="text-gray-300 leading-relaxed">
-                    We grow the regional internet by making interconnection affordable and
-                    accessible for networks of every size.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <button
+            onClick={() => goToContact(onNavigate)}
+            className="self-start md:self-auto bg-ink text-white px-7 py-3.5 font-mono text-label-sm font-bold tracking-mono uppercase hover:bg-[#F20732] transition-colors flex items-center gap-3 group hover-trigger whitespace-nowrap"
+          >
+            Get in touch <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 };
 
