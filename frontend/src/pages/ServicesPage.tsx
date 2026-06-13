@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowRight, Check, Plus, Minus, Network, Zap, ShieldCheck, Headphones } from 'lucide-react';
+import { ArrowRight, Check, Plus, Minus, Network, Zap, ShieldCheck, Headphones, Server, Cloud, Building2, Radio } from 'lucide-react';
 import { servicesApi, Service } from '../services/api';
+
+// Who connects to the exchange — value props tailored by network type
+const USE_CASES = [
+  { icon: Radio, t: 'ISPs & Eyeball Networks', d: 'Cut transit costs and improve last-mile latency by peering directly with the content your subscribers request most.', tags: ['Lower transit', 'Better QoE'] },
+  { icon: Cloud, t: 'Content & CDN', d: 'Push bits closer to end users with dense, low-latency interconnection across every PoP on the fabric.', tags: ['Edge reach', 'Throughput'] },
+  { icon: Building2, t: 'Enterprises', d: 'Reach cloud on-ramps, SaaS and partners over private, predictable paths instead of the public internet.', tags: ['Private paths', 'Cloud on-ramp'] },
+  { icon: Server, t: 'Cloud & Hosting', d: 'Aggregate peering in one port and scale capacity on demand as your traffic profile grows.', tags: ['Scale on demand', 'One port'] },
+];
+
+// Peering FAQs
+const FAQS = [
+  { q: 'How long does it take to get connected?', a: 'Once your port order and cross-connect are confirmed, most members are live and exchanging traffic within a few business days. Provisioning timelines depend on your chosen data center and cross-connect provider.' },
+  { q: 'Do you charge for traffic?', a: 'No. MX-IX is a flat-rate exchange — you pay for the port, not the bits. There are no per-megabit or 95th-percentile traffic charges, so your costs stay predictable as you grow.' },
+  { q: 'What do I need to peer on the route servers?', a: 'A public ASN, a registered PeeringDB record, and IRR/RPKI objects for the prefixes you announce. Our route servers apply RPKI and IRR filtering by default to keep the fabric clean.' },
+  { q: 'Can I run both bilateral and multilateral peering?', a: 'Yes. You can peer multilaterally through the route servers for instant reach, and set up bilateral sessions with specific networks for direct control — both over the same port.' },
+  { q: 'Is redundancy available?', a: 'Yes. You can order ports at multiple sites or take a second port for resiliency, and the fabric runs redundant route servers so a single failure never isolates you.' },
+];
 
 // Icon components for rendering based on backend icon strings
 const IconComponents: { [key: string]: React.ReactNode } = {
@@ -114,6 +131,7 @@ const ServicesPage = () => {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
     document.body.classList.add('dark-nav');
@@ -372,6 +390,71 @@ const ServicesPage = () => {
                   <p className="text-sm text-gray-500 leading-relaxed">{s.d}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Who connects */}
+      {!loading && !error && (
+        <section className="border-b border-gray-200 bg-white">
+          <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16">
+            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Who Connects</span>
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-3">Built for every kind of network</h2>
+            <p className="text-gray-500 max-w-2xl mb-10">Whatever you run, peering at MX-IX shortens the path between your network and the destinations that matter to you.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200">
+              {USE_CASES.map((u) => (
+                <div key={u.t} className="group relative bg-white p-6 overflow-hidden hover:bg-gray-50 transition-colors">
+                  <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+                  <u.icon className="w-6 h-6 text-[#F20732] mb-4" />
+                  <h3 className="font-bold text-ink mb-1.5">{u.t}</h3>
+                  <p className="text-sm text-gray-500 leading-relaxed mb-4">{u.d}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {u.tags.map((t) => (
+                      <span key={t} className="font-mono text-label-sm tracking-label uppercase text-gray-500 border border-gray-200 px-2 py-1">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* FAQ */}
+      {!loading && !error && (
+        <section className="border-b border-gray-200 bg-gray-50">
+          <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16">
+            <div className="grid lg:grid-cols-3 gap-10">
+              <div>
+                <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// FAQ</span>
+                <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-4">Common questions</h2>
+                <p className="text-gray-500 leading-relaxed mb-6">Everything you need to know before you peer. Still unsure? Our team is happy to walk you through it.</p>
+                <button onClick={goToContact} className="inline-flex items-center gap-2 font-mono text-label-sm font-bold tracking-mono uppercase text-ink hover:text-[#F20732] transition-colors hover-trigger">
+                  Ask a question <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="lg:col-span-2 border border-gray-200 divide-y divide-gray-200 bg-white">
+                {FAQS.map((f, i) => {
+                  const open = openFaq === i;
+                  return (
+                    <div key={i}>
+                      <button
+                        onClick={() => setOpenFaq(open ? null : i)}
+                        className="w-full px-6 py-5 flex items-center justify-between text-left group hover:bg-gray-50 transition-colors hover-trigger"
+                      >
+                        <span className="font-bold text-ink pr-6">{f.q}</span>
+                        <span className={`w-8 h-8 flex-shrink-0 flex items-center justify-center border transition-colors ${open ? 'bg-ink text-white border-ink' : 'border-gray-300 text-gray-500 group-hover:border-ink group-hover:text-ink'}`}>
+                          {open ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        </span>
+                      </button>
+                      <div className={`overflow-hidden transition-all duration-500 ${open ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+                        <p className="px-6 pb-5 text-sm text-gray-600 leading-relaxed">{f.a}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </section>

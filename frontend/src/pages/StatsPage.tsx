@@ -7,6 +7,7 @@ import {
   WifiOff,
   ArrowUp,
   ArrowDown,
+  ArrowRight,
   Activity,
 } from 'lucide-react';
 import {
@@ -428,6 +429,63 @@ const StatsPage = () => {
                   )}
                 </div>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Network quality */}
+      <section className="border-b border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-14">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Network Quality</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-3">A clean, secure fabric</h2>
+          <p className="text-gray-500 max-w-2xl mb-10">We filter every prefix and run redundant infrastructure so the routes you receive are correct, secure and resilient.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200">
+            {[
+              { v: 'RPKI', l: 'ROV enforced', d: 'Invalid routes dropped at the route servers.' },
+              { v: 'IRR', l: 'Prefix filtering', d: 'Announcements validated against registered objects.' },
+              { v: 'Dual', l: 'Route servers', d: 'Redundant servers — no single point of failure.' },
+              { v: 'IPv4 + IPv6', l: 'Dual-stack', d: 'Native dual-stack peering on every port.' },
+            ].map((q) => (
+              <div key={q.l} className="group relative bg-white p-6 overflow-hidden hover:bg-gray-50 transition-colors">
+                <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+                <div className="text-2xl font-black tracking-tighter text-ink mb-1">{q.v}</div>
+                <div className="font-mono text-label-sm tracking-label uppercase text-[#F20732] mb-3">{q.l}</div>
+                <p className="text-sm text-gray-500 leading-relaxed">{q.d}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-4 font-mono">
+            Figures update {isLive ? `every ${statsConfig.updateInterval / 1000}s` : 'on load'} ·
+            {grafanaStatus.connected ? ' Traffic sourced live from Grafana/Zabbix' : ' Traffic simulated until Grafana is connected'} ·
+            Capacity and network counts reflect provisioned ports across all locations.
+          </p>
+        </div>
+      </section>
+
+      {/* Explore more */}
+      <section className="border-b border-gray-200 bg-gray-50">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-14">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Explore</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">Go deeper</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
+            {[
+              { t: 'Looking Glass', d: 'Query live BGP routes, paths and prefixes from the route servers.', href: '/looking-glass' },
+              { t: 'Locations', d: 'Explore every PoP, its connected networks and port pricing.', href: '/locations' },
+              { t: 'Connected Networks', d: 'See who peers on the fabric and their peering policies.', href: '/networks' },
+            ].map((c) => (
+              <button
+                key={c.t}
+                onClick={() => { window.history.pushState({}, '', c.href); window.dispatchEvent(new PopStateEvent('popstate')); }}
+                className="group relative bg-white p-8 text-left overflow-hidden hover:bg-gray-50 transition-colors hover-trigger"
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+                <h3 className="text-xl font-bold text-ink mb-2">{c.t}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed mb-4">{c.d}</p>
+                <span className="inline-flex items-center gap-1 font-mono text-label-sm tracking-mono uppercase text-ink group-hover:text-[#F20732] transition-colors">
+                  Open <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </button>
             ))}
           </div>
         </div>
