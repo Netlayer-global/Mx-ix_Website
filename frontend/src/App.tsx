@@ -691,6 +691,8 @@ function AppContent() {
     const path = PATH_BY_PAGE[newPage] || `/${newPage}`;
     if (window.location.pathname !== path) window.history.pushState({}, '', path);
     setPage(newPage);
+    // Notify in-page views (e.g. Locations detail) so they can reset on nav.
+    window.dispatchEvent(new CustomEvent('app-navigate', { detail: { page: newPage } }));
   };
 
   // Listen for browser back/forward

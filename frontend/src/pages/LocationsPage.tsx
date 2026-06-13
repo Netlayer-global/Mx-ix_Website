@@ -1,1347 +1,577 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  MapPin,
+  Server,
+  Network,
+  Globe,
+  Zap,
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  Building2,
+  Activity,
+  Copy,
+  Search,
+  ShieldCheck,
+  CreditCard,
+} from 'lucide-react';
 import { useAdmin } from '../contexts/AdminContext';
-import { grafanaApi } from '../services/api';
-import type { ASN, EnabledSite } from '../contexts/AdminContext';
-
-interface LocationData {
-  id: string;
-  name: string;
-  country: string;
-  continentId: string;
-  region: string;
-  status: 'active' | 'maintenance' | 'planned';
-  latency: string;
-  datacenter: string;
-  address: string;
-  ixName: string;
-  peers: number;
-  capacity: string;
-  uptime?: string;
-  ipv4Routes?: string;
-  ipv6Routes?: string;
-  portSpeeds: string[];
-  protocols: string[];
-  features: string[];
-  description: string;
-  established: string;
-  cityImage: string;
-  pricing?: { portSpeed: string; monthlyPrice: number; setupFee: number; currency: string }[];
-  routeServers?: { name: string; asn: number; ipv4: string; ipv6: string }[];
-}
-
-interface ContinentData {
-  id: string;
-  name: string;
-}
+import { copyText } from '../shared/lg';
 
 interface LocationsPageProps {
   preSelectedLocation?: string;
   preSelectedSection?: string;
 }
 
-const LocationsPage = ({ preSelectedLocation, preSelectedSection }: LocationsPageProps) => {
-  const [expandedContinent, setExpandedContinent] = useState<string>('asia');
-  const [selectedLocation, setSelectedLocation] = useState<string>('del');
-  const [asnSearch, setASNSearch] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'asns' | 'sites' | 'pricing' | 'route-servers' | 'stats'>('overview');
+type AnyLoc = any;
+
+const FALLBACK_LOCATIONS: AnyLoc[] = [
+  { id: 'del', name: 'New Delhi', country: 'India', continentId: 'asia', region: 'South Asia', status: 'current', latency: '1.6', datacenter: 'NTT Delhi DC', ixName: 'DELIX', peers: 320, capacity: '150', portSpeeds: ['1G', '10G', '100G'], established: '2023', description: 'North India gateway for enterprise and government networks.' },
+  { id: 'bom', name: 'Mumbai', country: 'India', continentId: 'asia', region: 'South Asia', status: 'current', latency: '1.8', datacenter: 'Sify Rabale DC', ixName: 'MBIIX', peers: 340, capacity: '120', portSpeeds: ['1G', '10G', '100G'], established: '2022', description: "India's financial-capital interconnection hub." },
+  { id: 'dxb', name: 'Dubai', country: 'UAE', continentId: 'middle-east', region: 'Middle East', status: 'current', latency: '1.4', datacenter: 'Equinix DX1', ixName: 'UAE-IX', peers: 250, capacity: '180', portSpeeds: ['10G', '100G'], established: '2024', description: 'Premier MENA hub connecting Middle East to the world.' },
+  { id: 'sjc', name: 'Silicon Valley', country: 'USA', continentId: 'north-america', region: 'North America', status: 'upcoming', latency: '-', datacenter: 'Equinix SV1', ixName: 'SJIIX', peers: 0, capacity: '-', portSpeeds: ['10G', '100G', '400G'], established: 'Coming soon', description: 'Upcoming presence in the heart of Silicon Valley.' },
+];
+
+const FALLBACK_CONTINENTS = [
+  { id: 'asia', name: 'Asia' },
+  { id: 'middle-east', name: 'Middle East' },
+  { id: 'europe', name: 'Europe' },
+  { id: 'north-america', name: 'North America' },
+  { id: 'south-america', name: 'South America' },
+];
+
+const isLive = (s: string) => s === 'active' || s === 'current';
+const isUpcoming = (s: string) => s === 'planned' || s === 'upcoming';
+
+const statusMeta = (status: string) => {
+  if (isLive(status)) return { label: 'Live', dot: 'bg-green-500', text: 'text-green-600' };
+  if (status === 'maintenance') return { label: 'Maintenance', dot: 'bg-amber-500', text: 'text-amber-600' };
+  return { label: 'Coming soon', dot: 'bg-gray-400', text: 'text-gray-500' };
+};
+
+const LocationsPage: React.FC<LocationsPageProps> = ({ preSelectedLocation }) => {
   const { locations: adminLocations, continents: adminContinents } = useAdmin();
+  const [region, setRegion] = useState<string>('all');
+  const [country, setCountry] = useState<string>('all');
+  const [selected, setSelected] = useState<AnyLoc | null>(null);
 
-  // Grafana live traffic data
-  const [grafanaTraffic, setGrafanaTraffic] = useState<{
-    peakTraffic: number;
-    avgTraffic: number;
-    isLive: boolean;
-    loading: boolean;
-  }>({
-    peakTraffic: 0,
-    avgTraffic: 0,
-    isLive: false,
-    loading: false,
-  });
+  const locations: AnyLoc[] = adminLocations.length > 0 ? adminLocations : FALLBACK_LOCATIONS;
+  const continents = adminContinents.length > 0 ? adminContinents.map((c) => ({ id: c.id, name: c.name })) : FALLBACK_CONTINENTS;
 
-  // Hardcoded fallback data (used only if adminLocations is empty)
-  const hardcodedLocations: LocationData[] = [
-    // Current (Live) Locations - India
-    {
-      id: 'del',
-      name: 'NEW DELHI',
-      country: 'India',
-      continentId: 'asia',
-      region: 'South Asia',
-      status: 'active',
-      latency: '1.6',
-      datacenter: 'NTT DELHI DC',
-      address: 'Sector 142, Noida, Uttar Pradesh 201304, India',
-      ixName: 'DELIX',
-      peers: 320,
-      capacity: '150+',
-      portSpeeds: ['1G', '10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6', 'MPLS'],
-      features: [
-        'North India gateway',
-        'Government connectivity hub',
-        'Enterprise connectivity',
-        'Multi-cloud access',
-        'Low-latency trading',
-        'Carrier-dense location'
-      ],
-      description: 'Strategic hub serving North India\'s enterprise and government networks.',
-      established: '2023',
-      cityImage: '/assets/cities/delhi.png',
-      routeServers: [
-        { name: 'RS1', asn: 49378, ipv4: '103.77.108.200', ipv6: '2001:df2:1900:2::200' },
-        { name: 'RS2', asn: 49378, ipv4: '103.77.108.240', ipv6: '2001:df2:1900:2::240' }
-      ]
-    },
-    {
-      id: 'bom',
-      name: 'MUMBAI',
-      country: 'India',
-      continentId: 'asia',
-      region: 'South Asia',
-      status: 'active',
-      latency: '1.8',
-      datacenter: 'Sify Rabale DC',
-      address: 'MIDC Rabale, Navi Mumbai, Maharashtra 400701, India',
-      ixName: 'MBIIX',
-      peers: 340,
-      capacity: '120+',
-      portSpeeds: ['1G', '10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Gateway to Indian subcontinent',
-        'Financial hub connectivity',
-        'Low-latency to APAC markets',
-        'Carrier-neutral facility',
-        'Enterprise connectivity',
-        'Cloud on-ramps available'
-      ],
-      description: 'Strategic gateway serving India\'s largest financial and commercial center.',
-      established: '2022',
-      cityImage: '/assets/cities/mumbai.png',
-      routeServers: [
-        { name: 'RS1', asn: 49378, ipv4: '103.77.109.11', ipv6: '2001:df2:1900:2::11' },
-        { name: 'RS2', asn: 49378, ipv4: '103.77.109.12', ipv6: '2001:df2:1900:2::12' }
-      ]
-    },
-    {
-      id: 'maa',
-      name: 'CHENNAI',
-      country: 'India',
-      continentId: 'asia',
-      region: 'South Asia',
-      status: 'active',
-      latency: '2.0',
-      datacenter: 'STT CHENNAI 1',
-      address: 'Ambattur Industrial Estate, Chennai 600058, India',
-      ixName: 'CIIX',
-      peers: 280,
-      capacity: '100+',
-      portSpeeds: ['1G', '10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Submarine cable landing point',
-        'South India gateway',
-        'IT corridor connectivity',
-        'Disaster recovery hub',
-        'Cloud connectivity',
-        'Enterprise-grade facility'
-      ],
-      description: 'Key submarine cable landing station connecting India to global networks.',
-      established: '2023',
-      cityImage: '/assets/cities/chennai.png'
-    },
-    {
-      id: 'ccu',
-      name: 'KOLKATA',
-      country: 'India',
-      continentId: 'asia',
-      region: 'South Asia',
-      status: 'active',
-      latency: '2.2',
-      datacenter: 'CTRLS KOLKATA',
-      address: 'Sector V, Salt Lake City, Kolkata 700091, India',
-      ixName: 'CCUIX',
-      peers: 180,
-      capacity: '80+',
-      portSpeeds: ['1G', '10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Eastern India gateway',
-        'BFSI hub connectivity',
-        'Low-latency to Bangladesh',
-        'Enterprise connectivity',
-        'Cloud on-ramps available',
-        'Carrier-neutral facility'
-      ],
-      description: 'Strategic gateway serving Eastern India\'s enterprise and financial networks.',
-      established: '2024',
-      cityImage: '/assets/cities/kolkata.png'
-    },
-    {
-      id: 'hyd',
-      name: 'HYDERABAD',
-      country: 'India',
-      continentId: 'asia',
-      region: 'South Asia',
-      status: 'active',
-      latency: '1.9',
-      datacenter: 'YOTTA HYDERABAD',
-      address: 'HITEC City, Hyderabad 500081, India',
-      ixName: 'HYDIX',
-      peers: 220,
-      capacity: '100+',
-      portSpeeds: ['1G', '10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Central India gateway',
-        'IT hub connectivity',
-        'Enterprise connectivity',
-        'Cloud on-ramps (AWS, Azure)',
-        'Carrier-neutral facility',
-        'Green energy powered'
-      ],
-      description: 'Key hub serving Hyderabad\'s thriving IT and enterprise sector.',
-      established: '2024',
-      cityImage: '/assets/cities/hyderabad.png'
-    },
-    {
-      id: 'blr',
-      name: 'BANGALORE',
-      country: 'India',
-      continentId: 'asia',
-      region: 'South Asia',
-      status: 'active',
-      latency: '1.7',
-      datacenter: 'NTT BANGALORE DC',
-      address: 'Electronic City, Bangalore 560100, India',
-      ixName: 'BLRIX',
-      peers: 350,
-      capacity: '150+',
-      portSpeeds: ['1G', '10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6', 'MPLS'],
-      features: [
-        'Silicon Valley of India',
-        'Tech hub connectivity',
-        'Enterprise connectivity',
-        'Multi-cloud access',
-        'Low-latency trading',
-        'Carrier-dense location'
-      ],
-      description: 'India\'s tech capital hub serving enterprise and startup networks.',
-      established: '2023',
-      cityImage: '/assets/cities/bangalore.png'
-    },
-    // Current (Live) Location - Middle East
-    {
-      id: 'dxb',
-      name: 'DUBAI',
-      country: 'United Arab Emirates',
-      continentId: 'middle-east',
-      region: 'Middle East',
-      status: 'active',
-      latency: '1.4',
-      datacenter: 'EQUINIX DX1',
-      address: 'Dubai Silicon Oasis, Dubai, UAE',
-      ixName: 'UAE-IX',
-      peers: 250,
-      capacity: '180+',
-      portSpeeds: ['10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Middle East gateway',
-        'MENA region hub',
-        'Financial services hub',
-        'Low-latency to Africa/Asia',
-        'Enterprise connectivity',
-        'Cloud on-ramps available'
-      ],
-      description: 'Premier Middle East hub connecting MENA region to global networks.',
-      established: '2024',
-      cityImage: '/assets/cities/dubai.png'
-    },
-    // Upcoming Locations - North America
-    {
-      id: 'lax',
-      name: 'LOS ANGELES',
-      country: 'United States',
-      continentId: 'north-america',
-      region: 'North America',
-      status: 'planned',
-      latency: '-',
-      datacenter: 'EQUINIX LA1',
-      address: 'Los Angeles, CA, USA',
-      ixName: 'LAIIX',
-      peers: 0,
-      capacity: '-',
-      portSpeeds: ['10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'West Coast gateway',
-        'Pacific connectivity',
-        'Content networks hub',
-        'Cloud on-ramps',
-        'Carrier-neutral facility',
-        'Coming soon'
-      ],
-      description: 'Upcoming West Coast presence for Pacific connectivity.',
-      established: 'Coming Soon',
-      cityImage: '/assets/cities/losangeles.png'
-    },
-    {
-      id: 'sjc',
-      name: 'SILICON VALLEY',
-      country: 'United States',
-      continentId: 'north-america',
-      region: 'North America',
-      status: 'planned',
-      latency: '-',
-      datacenter: 'EQUINIX SV1',
-      address: 'San Jose, CA, USA',
-      ixName: 'SJIIX',
-      peers: 0,
-      capacity: '-',
-      portSpeeds: ['10G', '40G', '100G', '400G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Tech capital access',
-        'Cloud connectivity hub',
-        'Enterprise networks',
-        'Low-latency trading',
-        'Multi-cloud access',
-        'Coming soon'
-      ],
-      description: 'Upcoming presence in the heart of Silicon Valley.',
-      established: 'Coming Soon',
-      cityImage: '/assets/cities/siliconvalley.png'
-    },
-    {
-      id: 'qro',
-      name: 'QUERETARO',
-      country: 'Mexico',
-      continentId: 'north-america',
-      region: 'North America',
-      status: 'planned',
-      latency: '-',
-      datacenter: 'TBD',
-      address: 'Queretaro, Mexico',
-      ixName: 'QROIX',
-      peers: 0,
-      capacity: '-',
-      portSpeeds: ['10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'LATAM gateway',
-        'Mexico connectivity',
-        'Enterprise networks',
-        'Cloud on-ramps',
-        'Carrier-neutral',
-        'Coming soon'
-      ],
-      description: 'Upcoming presence in Mexico\'s growing tech hub.',
-      established: 'Coming Soon',
-      cityImage: '/assets/cities/queretaro.png'
-    },
-    // Upcoming Location - Europe
-    {
-      id: 'vie',
-      name: 'VIENNA',
-      country: 'Austria',
-      continentId: 'europe',
-      region: 'Europe',
-      status: 'planned',
-      latency: '-',
-      datacenter: 'INTERXION VIE1',
-      address: 'Vienna, Austria',
-      ixName: 'VIX',
-      peers: 0,
-      capacity: '-',
-      portSpeeds: ['10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Central European gateway',
-        'CEE connectivity',
-        'Financial services',
-        'Enterprise networks',
-        'Green energy powered',
-        'Coming soon'
-      ],
-      description: 'Upcoming Central European hub for CEE connectivity.',
-      established: 'Coming Soon',
-      cityImage: '/assets/cities/vienna.png'
-    },
-    // Upcoming Location - South America
-    {
-      id: 'eze',
-      name: 'BUENOS AIRES',
-      country: 'Argentina',
-      continentId: 'south-america',
-      region: 'South America',
-      status: 'planned',
-      latency: '-',
-      datacenter: 'TBD',
-      address: 'Buenos Aires, Argentina',
-      ixName: 'AMSIX-BA',
-      peers: 0,
-      capacity: '-',
-      portSpeeds: ['10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'South America gateway',
-        'LATAM connectivity',
-        'Enterprise networks',
-        'Cloud on-ramps',
-        'Carrier-neutral',
-        'Coming soon'
-      ],
-      description: 'Upcoming South American presence for LATAM connectivity.',
-      established: 'Coming Soon',
-      cityImage: '/assets/cities/buenosaires.png'
-    },
-    // Upcoming Location - Middle East
-    {
-      id: 'fjr',
-      name: 'FUJAIRAH',
-      country: 'United Arab Emirates',
-      continentId: 'middle-east',
-      region: 'Middle East',
-      status: 'planned',
-      latency: '-',
-      datacenter: 'TBD',
-      address: 'Fujairah, UAE',
-      ixName: 'FJRIX',
-      peers: 0,
-      capacity: '-',
-      portSpeeds: ['10G', '40G', '100G'],
-      protocols: ['BGP-4', 'IPv4', 'IPv6'],
-      features: [
-        'Strategic cable landing',
-        'MENA connectivity',
-        'Submarine cable hub',
-        'Enterprise networks',
-        'Low-latency to Asia',
-        'Coming soon'
-      ],
-      description: 'Upcoming submarine cable hub for Middle East and Asia connectivity.',
-      established: 'Coming Soon',
-      cityImage: '/assets/cities/fujairah.png'
-    }
-  ];
-
-  // Use live locations from AdminContext (from database)
-  // Fallback to hardcoded data only if admin context is empty
-  const locations = adminLocations.length > 0 ? adminLocations : hardcodedLocations;
-
-  // Use live continents from AdminContext
-  const hardcodedContinents: ContinentData[] = [
-    { id: 'asia', name: 'ASIA' },
-    { id: 'middle-east', name: 'MIDDLE EAST' },
-    { id: 'europe', name: 'EUROPE' },
-    { id: 'north-america', name: 'NORTH AMERICA' },
-    { id: 'south-america', name: 'SOUTH AMERICA' }
-  ];
-
-  const continents = adminContinents.length > 0
-    ? adminContinents.map(c => ({ id: c.id, name: c.name.toUpperCase() }))
-    : hardcodedContinents;
-
-  // Handle pre-selected location and section from map navigation
-  useEffect(() => {
-    if (preSelectedLocation) {
-      setSelectedLocation(preSelectedLocation);
-      // Find the continent for this location and expand it
-      const location = locations.find(l => l.id === preSelectedLocation);
-      if (location) {
-        setExpandedContinent(location.continentId);
-      }
-    }
-    if (preSelectedSection) {
-      if (preSelectedSection === 'asns') setActiveTab('asns');
-      else if (preSelectedSection === 'sites') setActiveTab('sites');
-      else setActiveTab('overview');
-    }
-  }, [preSelectedLocation, preSelectedSection, locations]);
-
-  // Ensure a valid location is selected on load or when locations change
-  useEffect(() => {
-    if (locations.length > 0) {
-      const currentExists = locations.find(l => l.id === selectedLocation);
-      if (!currentExists) {
-        setSelectedLocation(locations[0].id);
-        setExpandedContinent(locations[0].continentId);
-      }
-    }
-  }, [locations, selectedLocation]);
-
-  // Add dark-nav class for navbar visibility
   useEffect(() => {
     document.body.classList.add('dark-nav');
-    return () => {
-      document.body.classList.remove('dark-nav');
-    };
+    return () => document.body.classList.remove('dark-nav');
   }, []);
 
-  // Fetch Grafana traffic data when Stats tab is active
   useEffect(() => {
-    if (activeTab !== 'stats') return;
+    if (preSelectedLocation) {
+      const loc = locations.find((l) => l.id === preSelectedLocation);
+      if (loc) setSelected(loc);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preSelectedLocation, adminLocations.length]);
 
-    const fetchGrafanaData = async () => {
-      setGrafanaTraffic(prev => ({ ...prev, loading: true }));
-      try {
-        const result = await grafanaApi.getTraffic();
-        if (result.success && result.data) {
-          setGrafanaTraffic({
-            peakTraffic: result.data.peakTraffic,
-            avgTraffic: result.data.avgTraffic,
-            isLive: result.data.source === 'grafana',
-            loading: false,
-          });
-        } else {
-          setGrafanaTraffic(prev => ({ ...prev, isLive: false, loading: false }));
-        }
-      } catch (error) {
-        console.error('Failed to fetch Grafana data:', error);
-        setGrafanaTraffic(prev => ({ ...prev, isLive: false, loading: false }));
-      }
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [selected]);
+
+  // Reset to the list when the "Locations" nav item is clicked again.
+  useEffect(() => {
+    const onNav = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.page === 'locations') setSelected(null);
     };
+    window.addEventListener('app-navigate', onNav);
+    return () => window.removeEventListener('app-navigate', onNav);
+  }, []);
 
-    fetchGrafanaData();
-    const interval = setInterval(fetchGrafanaData, 10000); // Refresh every 10 seconds
+  // Reset country when region changes
+  useEffect(() => { setCountry('all'); }, [region]);
 
-    return () => clearInterval(interval);
-  }, [activeTab]);
+  const stats = useMemo(() => {
+    const countries = new Set(locations.map((l) => l.country));
+    return {
+      live: locations.filter((l) => isLive(l.status)).length,
+      countries: countries.size,
+      upcoming: locations.filter((l) => isUpcoming(l.status)).length,
+    };
+  }, [locations]);
 
-  const getCitiesInContinent = (continentId: string) => {
-    return locations.filter(l => l.continentId === continentId);
+  const regionsWithLocations = continents.filter((c) => locations.some((l) => l.continentId === c.id));
+  const inRegion = region === 'all' ? locations : locations.filter((l) => l.continentId === region);
+  const countriesInRegion = Array.from(new Set(inRegion.map((l) => l.country))).filter(Boolean).sort();
+  const visible = inRegion.filter((l) => country === 'all' || l.country === country);
+
+  const goToContact = (city?: string) => {
+    window.dispatchEvent(new CustomEvent('navigateToContact', { detail: { city: city || '' } }));
   };
 
-  const selectedLocationData = locations.find(loc => loc.id === selectedLocation);
-
-  const toggleContinent = (continentId: string) => {
-    if (expandedContinent === continentId) {
-      setExpandedContinent('');
-    } else {
-      setExpandedContinent(continentId);
-    }
-  };
-
-  const handleCityClick = (cityId: string) => {
-    setSelectedLocation(cityId);
-    // Scroll to top on mobile
-    if (window.innerWidth < 1024) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
+  if (selected) {
+    return <LocationDetail loc={selected} onBack={() => setSelected(null)} onRequest={goToContact} />;
+  }
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Hero Section with Globe */}
-      <section className="relative bg-black text-white overflow-hidden">
-        {/* Carbon Fiber Texture */}
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-
-        {/* Red Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#F20732]/20 via-transparent to-transparent"></div>
-
-        <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10 pt-32 pb-20">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            {/* Left: Text Content */}
+    <div className="min-h-screen bg-white text-ink">
+      {/* Hero */}
+      <section className="relative bg-ink text-white overflow-hidden pt-36 md:pt-44 pb-20">
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#F20732]/15 blur-[120px]" />
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              {/* Header Badge */}
-              <div className="inline-flex items-center gap-3 mb-6">
-                <div className="w-2 h-2 rounded-full bg-[#F20732] animate-pulse"></div>
-                <span className="font-mono text-xs font-bold tracking-[0.2em] text-[#F20732] uppercase">
-                  Global Presence
-                </span>
-              </div>
-
-              {/* Main Heading */}
-              <h1 className="text-5xl md:text-7xl font-black leading-tight tracking-tighter mb-6">
-                OUR GLOBAL <span className="text-[#F20732]">LOCATIONS</span>
+              <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Global Presence</span>
+              <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[0.95] mt-4 mb-6">
+                OUR <span className="text-[#F20732]">LOCATIONS</span>
               </h1>
-
-              <p className="text-gray-300 text-lg leading-relaxed max-w-xl mb-8">
-                Strategic Points of Presence across the globe, ensuring ultra-low latency
-                and maximum uptime for your critical infrastructure.
+              <p className="text-gray-400 text-base md:text-lg leading-relaxed max-w-xl border-l-2 border-white/10 pl-6">
+                Carrier-neutral points of presence across Asia, the Middle East and beyond — peer once,
+                reach everywhere, with low latency and resilient interconnection.
               </p>
-
-              {/* Stats Quick View */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="border-l-2 border-[#F20732] pl-4">
-                  <div className="text-3xl font-light text-white tracking-tighter">
-                    {locations.length}
+              <div className="grid grid-cols-3 gap-4 mt-10 max-w-lg">
+                {[
+                  { v: stats.live, l: 'Live Cities' },
+                  { v: stats.countries, l: 'Countries' },
+                  { v: stats.upcoming, l: 'Upcoming' },
+                ].map((s) => (
+                  <div key={s.l} className="border-l-2 border-[#F20732] pl-4">
+                    <div className="text-4xl font-light tracking-tighter tabular-nums">{s.v}</div>
+                    <div className="font-mono text-label-sm tracking-label uppercase text-gray-400 mt-1">{s.l}</div>
                   </div>
-                  <div className="text-xs text-gray-400 uppercase font-mono tracking-wider">
-                    Cities
-                  </div>
-                </div>
-                <div className="border-l-2 border-gray-700 pl-4">
-                  <div className="text-3xl font-light text-white tracking-tighter">
-                    4.4K
-                  </div>
-                  <div className="text-xs text-gray-400 uppercase font-mono tracking-wider">
-                    Peers
-                  </div>
-                </div>
-                <div className="border-l-2 border-gray-700 pl-4">
-                  <div className="text-3xl font-light text-white tracking-tighter">
-                    100 %
-                  </div>
-                  <div className="text-xs text-gray-400 uppercase font-mono tracking-wider">
-                    Uptime
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
-
-            {/* Right: Globe Image */}
-            <div className="relative lg:absolute lg:right-0 lg:top-1/2 lg:-translate-y-1/2 lg:w-[45%]">
+            <div className="hidden lg:flex items-center justify-center">
               <div className="relative">
-                {/* Glow effect behind globe */}
-                <div className="absolute inset-0 bg-[#F20732]/20 blur-3xl rounded-full scale-75"></div>
-
-                {/* Globe Image */}
-                <img
-                  src="/assets/globe/globe_hero.png"
-                  alt="Global Network"
-                  className="relative w-full h-auto opacity-90 hover:opacity-100 transition-opacity duration-500"
-                />
+                <div className="absolute inset-0 bg-[#F20732]/20 blur-3xl rounded-full scale-75" />
+                <img src="/assets/globe/globe_hero.png" alt="Global network" className="relative w-full max-w-md h-auto opacity-90" />
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Main Content: Sidebar + Details Panel */}
-      <section className="relative bg-gray-100">
-        <div className="max-w-[1920px] mx-auto">
-          <div className="flex flex-col lg:flex-row min-h-screen">
-            {/* LEFT SIDEBAR - Continent/City Navigation */}
-            <aside className="lg:w-96 bg-white border-r-2 border-gray-300 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto shadow-lg scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              <div className="p-8 border-b-2 border-gray-200 bg-gradient-to-br from-white to-gray-50">
-                <div className="inline-flex items-center gap-2 mb-3">
-                  <div className="w-1.5 h-1.5 bg-[#F20732] rounded-full"></div>
-                  <span className="font-mono text-[10px] font-bold tracking-[0.2em] text-[#F20732] uppercase">
-                    Global Topology
+      {/* Region + country filters */}
+      <section className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-200">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-3 space-y-2">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+            <span className="font-mono text-label-sm tracking-label uppercase text-gray-400 mr-2 flex-shrink-0 w-16">Region</span>
+            {[{ id: 'all', name: 'All' }, ...regionsWithLocations].map((c) => (
+              <button
+                key={c.id}
+                onClick={() => setRegion(c.id)}
+                className={`flex-shrink-0 px-4 py-2 font-mono text-label-sm tracking-mono uppercase border transition-colors hover-trigger ${
+                  region === c.id ? 'bg-ink text-white border-ink' : 'border-gray-300 text-gray-500 hover:border-ink hover:text-ink'
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+          {countriesInRegion.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+              <span className="font-mono text-label-sm tracking-label uppercase text-gray-400 mr-2 flex-shrink-0 w-16">Country</span>
+              <button
+                onClick={() => setCountry('all')}
+                className={`flex-shrink-0 px-4 py-2 font-mono text-label-sm tracking-mono uppercase border transition-colors hover-trigger ${
+                  country === 'all' ? 'bg-[#F20732] text-white border-[#F20732]' : 'border-gray-300 text-gray-500 hover:border-ink hover:text-ink'
+                }`}
+              >
+                All
+              </button>
+              {countriesInRegion.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCountry(c)}
+                  className={`flex-shrink-0 px-4 py-2 font-mono text-label-sm tracking-mono uppercase border transition-colors hover-trigger ${
+                    country === c ? 'bg-[#F20732] text-white border-[#F20732]' : 'border-gray-300 text-gray-500 hover:border-ink hover:text-ink'
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Cards grid */}
+      <section className="max-w-[1400px] mx-auto px-6 md:px-12 py-12 md:py-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
+          {visible.map((loc) => {
+            const st = statusMeta(loc.status);
+            const live = isLive(loc.status);
+            return (
+              <button
+                key={loc.id}
+                onClick={() => live && setSelected(loc)}
+                className={`group relative bg-white p-6 text-left overflow-hidden transition-colors ${live ? 'hover:bg-gray-50 hover-trigger cursor-pointer' : 'cursor-default'}`}
+              >
+                <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${st.dot}`} />
+                    <span className={`font-mono text-label-sm tracking-mono uppercase ${st.text}`}>{st.label}</span>
+                  </div>
+                  <span className="font-mono text-label-sm tracking-label uppercase text-gray-400">{loc.region}</span>
+                </div>
+                <h3 className="text-2xl font-black tracking-tighter text-ink">{loc.name}</h3>
+                <p className="font-mono text-xs text-gray-400 mt-1">{loc.country}{loc.ixName ? ` · ${loc.ixName}` : ''}</p>
+                {loc.description && <p className="text-sm text-gray-500 mt-4 leading-relaxed line-clamp-2">{loc.description}</p>}
+                {live ? (
+                  <div className="grid grid-cols-3 gap-3 mt-5 pt-5 border-t border-gray-100">
+                    <div>
+                      <div className="text-lg font-light tracking-tight text-ink tabular-nums">{loc.peers ?? loc.asns ?? 0}+</div>
+                      <div className="font-mono text-label-sm tracking-label uppercase text-gray-400">Networks</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-light tracking-tight text-ink tabular-nums">{loc.latency && loc.latency !== '-' ? loc.latency : '<2'}<span className="text-xs text-gray-400">ms</span></div>
+                      <div className="font-mono text-label-sm tracking-label uppercase text-gray-400">Latency</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-light tracking-tight text-ink tabular-nums">{(loc.routeServers?.length ?? 0) || (loc.sites ?? 0)}</div>
+                      <div className="font-mono text-label-sm tracking-label uppercase text-gray-400">{loc.routeServers?.length ? 'Route Srv' : 'Sites'}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5 pt-5 border-t border-gray-100">
+                    <span className="font-mono text-label-sm tracking-mono uppercase text-gray-400">{loc.established || 'Coming soon'}</span>
+                  </div>
+                )}
+                {live && (
+                  <span className="inline-flex items-center gap-1 mt-5 font-mono text-label-sm tracking-mono uppercase text-ink group-hover:text-[#F20732] transition-colors">
+                    View details <ArrowRight className="w-3.5 h-3.5" />
                   </span>
-                </div>
-                <h2 className="text-4xl font-black text-black tracking-tight">
-                  LOCATIONS
-                </h2>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        {!visible.length && <p className="text-center py-16 font-mono text-label tracking-label uppercase text-gray-400">No locations in this region yet</p>}
+      </section>
+
+      {/* Why peer here */}
+      <section className="border-t border-gray-200 bg-gray-50">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-14">
+          <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Why MX-IX</span>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">One fabric, every location</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200">
+            {[
+              { icon: Building2, t: 'Carrier & DC neutral', d: 'Connect from any carrier or data center — no lock-in, your choice of provider.' },
+              { icon: Network, t: 'One port, full reach', d: 'A single connection peers you with every network on the exchange. No per-bit fees.' },
+              { icon: Zap, t: 'Low latency', d: 'Local interconnection keeps traffic in-region — typically sub-2ms across the fabric.' },
+              { icon: ShieldCheck, t: '24/7 NOC + route servers', d: 'Multilateral route servers with RPKI/IRR filtering, monitored around the clock.' },
+            ].map((b) => (
+              <div key={b.t} className="bg-white p-6">
+                <b.icon className="w-6 h-6 text-[#F20732] mb-4" />
+                <h3 className="font-bold text-ink mb-1.5">{b.t}</h3>
+                <p className="text-sm text-gray-500 leading-relaxed">{b.d}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-              {/* Accordion Menu */}
-              <nav className="py-4">
-                {continents.map((continent) => {
-                  const cities = getCitiesInContinent(continent.id);
-                  const isExpanded = expandedContinent === continent.id;
+      {/* How to connect */}
+      <section className="max-w-[1400px] mx-auto px-6 md:px-12 py-14">
+        <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Get Connected</span>
+        <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">Live in three steps</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
+          {[
+            { n: '01', t: 'Pick a location', d: 'Choose a city and port speed that fits your network and traffic profile.' },
+            { n: '02', t: 'Order your port', d: 'Request a port — our team confirms availability, cross-connect and pricing.' },
+            { n: '03', t: 'Peer & go live', d: 'Turn up BGP to the route servers and start exchanging traffic with the fabric.' },
+          ].map((s) => (
+            <div key={s.n} className="bg-white p-8">
+              <div className="text-5xl font-black tracking-tighter text-gray-200">{s.n}</div>
+              <h3 className="font-bold text-ink mt-4 mb-1.5">{s.t}</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">{s.d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-                  return (
-                    <div key={continent.id} className="border-b border-gray-100">
-                      {/* Continent Header */}
-                      <button
-                        onClick={() => toggleContinent(continent.id)}
-                        className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors group"
-                      >
-                        <span className="font-bold text-sm tracking-wide text-black group-hover:text-[#F20732] transition-colors">
-                          {continent.name}
-                        </span>
-                        <svg
-                          className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
+      {/* CTA */}
+      <section className="bg-ink text-white">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-14 flex flex-col md:flex-row md:items-center md:justify-between gap-6 relative overflow-hidden">
+          <div className="absolute -top-24 -right-24 w-80 h-80 rounded-full bg-[#F20732]/15 blur-[110px]" />
+          <div className="relative">
+            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Connect</span>
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2">Peer at any MX-IX location</h2>
+            <p className="text-gray-400 mt-2 max-w-xl">One port, one connection — reach every network on the fabric.</p>
+          </div>
+          <button onClick={() => goToContact()} className="relative self-start md:self-auto bg-[#F20732] text-white px-7 py-3.5 font-mono text-label-sm font-bold tracking-mono uppercase hover:bg-white hover:text-ink transition-colors flex items-center gap-3 group hover-trigger whitespace-nowrap">
+            Request a Port <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+};
 
-                      {/* City List */}
-                      {isExpanded && cities.length > 0 && (
-                        <div className="bg-gray-50">
-                          {cities.map((city) => (
-                            <button
-                              key={city.id}
-                              onClick={() => handleCityClick(city.id)}
-                              className={`w-full px-6 py-3 text-left flex items-center justify-between group hover:bg-black transition-all duration-300 border-l-2 ${selectedLocation === city.id
-                                ? 'border-[#F20732] bg-black'
-                                : 'border-transparent bg-gray-50'
-                                }`}
-                            >
-                              <div className="flex-1">
-                                <div className={`font-medium text-sm transition-colors ${selectedLocation === city.id
-                                  ? 'text-white'
-                                  : 'text-gray-700 group-hover:text-white'
-                                  }`}>
-                                  {city.name}
-                                </div>
-                                <div className={`font-mono text-[10px] mt-0.5 transition-colors ${selectedLocation === city.id
-                                  ? 'text-gray-400'
-                                  : 'text-gray-400 group-hover:text-gray-300'
-                                  }`}>
-                                  {city.country} // {city.latency}ms
-                                </div>
-                              </div>
+// ── Full city detail page ──────────────────────────────────────────────────
+const CopyChip: React.FC<{ value: string }> = ({ value }) => {
+  const [done, setDone] = useState(false);
+  if (!value) return <span className="text-gray-400">—</span>;
+  return (
+    <button
+      onClick={async () => { if (await copyText(value)) { setDone(true); setTimeout(() => setDone(false), 1200); } }}
+      className="inline-flex items-center gap-1.5 font-mono text-xs text-gray-600 hover:text-[#F20732] transition-colors hover-trigger group"
+    >
+      {value}
+      {done ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100" />}
+    </button>
+  );
+};
 
-                              {/* Active Badge */}
-                              {city.status === 'active' && (
-                                <span className="inline-block px-2 py-0.5 bg-[#F20732] text-white text-[9px] font-mono font-bold uppercase tracking-wider">
-                                  ACTIVE
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </nav>
-            </aside>
+const LocationDetail: React.FC<{ loc: AnyLoc; onBack: () => void; onRequest: (city?: string) => void }> = ({ loc, onBack, onRequest }) => {
+  const [asnQuery, setAsnQuery] = useState('');
+  const asns: AnyLoc[] = loc.asnList || [];
+  const sites: AnyLoc[] = loc.enabledSites || [];
+  const routeServers: AnyLoc[] = loc.routeServers || [];
+  const features: string[] = loc.features || [];
+  const portSpeeds: string[] = loc.portSpeeds || [];
+  const st = statusMeta(loc.status);
 
-            {/* RIGHT PANEL - City Details */}
-            <main className="flex-1 lg:min-h-screen bg-white lg:p-8">
-              {selectedLocationData ? (
-                <div className="animate-in fade-in duration-500 bg-white lg:shadow-xl lg:border-2 lg:border-gray-200">
-                  {/* City Header */}
-                  <div className="bg-black text-white px-8 py-12 border-b-4 border-[#F20732]">
-                    <h2 className="text-5xl md:text-6xl font-black mb-3 tracking-tight">
-                      {selectedLocationData.name}
-                    </h2>
-                    <div className="flex items-center gap-4">
-                      <span className="text-[#F20732] font-bold text-xl tracking-wide">
-                        {selectedLocationData.country}
-                      </span>
-                      <span className="text-gray-400 font-mono text-sm">
-                        // {selectedLocationData.region}
-                      </span>
-                    </div>
-                  </div>
+  const money = (n: number, cur?: string) =>
+    new Intl.NumberFormat(undefined, { style: 'currency', currency: cur || 'USD', maximumFractionDigits: 0 }).format(n || 0);
 
-                  {/* Stats Bar */}
-                  <div className="bg-white border-b border-gray-200">
-                    <div className="max-w-6xl mx-auto px-8 py-6">
-                      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                        <div className="text-center p-3 md:border-r border-gray-100">
-                          <div className="font-mono text-[10px] text-[#F20732] uppercase tracking-widest mb-1">
-                            Connected Networks
-                          </div>
-                          <div className="text-xl font-bold text-black">
-                            {selectedLocationData.peers}+
-                          </div>
-                        </div>
-                        <div className="text-center p-3 md:border-r border-gray-100">
-                          <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-1">
-                            IPv4 Routes
-                          </div>
-                          <div className="text-xl font-bold text-black">
-                            {selectedLocationData.ipv4Routes || `${Math.round(selectedLocationData.peers * 2.4)}K`}
-                          </div>
-                        </div>
-                        <div className="text-center p-3 md:border-r border-gray-100">
-                          <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-1">
-                            IPv6 Routes
-                          </div>
-                          <div className="text-xl font-bold text-black">
-                            {selectedLocationData.ipv6Routes || `${Math.round(selectedLocationData.peers * 0.6)}K`}
-                          </div>
-                        </div>
-                        <div className="text-center p-3 md:border-r border-gray-100">
-                          <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-1">
-                            Capacity
-                          </div>
-                          <div className="text-xl font-bold text-black">
-                            {(() => {
-                              const capacityStr = selectedLocationData.capacity;
-                              // Extract numbers from string (e.g., "100+" -> "100", "10Tbps" -> "10")
-                              const capacityNum = parseFloat(capacityStr.replace(/[^0-9.]/g, ''));
-                              return isNaN(capacityNum) ? '0' : capacityNum;
-                            })()} Tbps
-                          </div>
-                        </div>
-                        <div className="text-center p-3 md:border-r border-gray-100">
-                          <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-1">
-                            Peak Traffic
-                          </div>
-                          <div className="text-xl font-bold text-black">
-                            {(() => {
-                              const capacityStr = selectedLocationData.capacity;
-                              const capacityNum = parseFloat(capacityStr.replace(/[^0-9.]/g, ''));
-                              return isNaN(capacityNum) ? '0' : Math.round(capacityNum * 0.85);
-                            })()} Tbps
-                          </div>
-                        </div>
-                        <div className="text-center p-3">
-                          <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-1">
-                            Uptime
-                          </div>
-                          <div className="text-xl font-bold text-[#00B341]">
-                            {selectedLocationData.uptime || '100 %'}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+  // Use location-specific pricing if set; otherwise indicative standard pricing
+  // derived from the available port speeds (admin can override per-location).
+  const DEFAULT_PRICE: Record<string, number> = { '1G': 250, '10G': 500, '25G': 900, '40G': 1100, '100G': 1500, '400G': 4000 };
+  const explicitPricing: AnyLoc[] = loc.pricing || [];
+  const pricing: AnyLoc[] = explicitPricing.length
+    ? explicitPricing
+    : portSpeeds
+        .filter((s) => DEFAULT_PRICE[s])
+        .map((s) => ({ portSpeed: s, monthlyPrice: DEFAULT_PRICE[s], setupFee: 0, currency: 'USD' }));
+  const pricingIsIndicative = explicitPricing.length === 0;
 
-                  {/* Tab Navigation */}
-                  <div className="bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700">
-                    <div className="max-w-5xl mx-auto px-0 md:px-8">
-                      <div className="flex items-center gap-0 overflow-x-auto scrollbar-hide">
-                        <button
-                          onClick={() => setActiveTab('overview')}
-                          className={`px-4 py-3 md:px-6 md:py-4 font-mono text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 border-b-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'overview'
-                            ? 'text-white border-[#F20732] bg-black/30'
-                            : 'text-gray-400 border-transparent hover:text-white hover:bg-black/20'
-                            }`}
-                        >
-                          Overview
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('asns')}
-                          className={`px-4 py-3 md:px-6 md:py-4 font-mono text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 border-b-2 flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'asns'
-                            ? 'text-white border-[#F20732] bg-black/30'
-                            : 'text-gray-400 border-transparent hover:text-white hover:bg-black/20'
-                            }`}
-                        >
-                          Connected Networks
-                          <span className={`px-2 py-0.5 rounded text-[10px] ${activeTab === 'asns' ? 'bg-[#F20732]' : 'bg-gray-700'}`}>
-                            {adminLocations.find(l => l.id === selectedLocationData.id)?.asnList?.length || 0}
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('sites')}
-                          className={`px-4 py-3 md:px-6 md:py-4 font-mono text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 border-b-2 flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'sites'
-                            ? 'text-white border-[#F20732] bg-black/30'
-                            : 'text-gray-400 border-transparent hover:text-white hover:bg-black/20'
-                            }`}
-                        >
-                          Enabled Sites
-                          <span className={`px-2 py-0.5 rounded text-[10px] ${activeTab === 'sites' ? 'bg-[#F20732]' : 'bg-gray-700'}`}>
-                            {adminLocations.find(l => l.id === selectedLocationData.id)?.enabledSites?.length || 0}
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('pricing')}
-                          className={`px-4 py-3 md:px-6 md:py-4 font-mono text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 border-b-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'pricing'
-                            ? 'text-white border-[#F20732] bg-black/30'
-                            : 'text-gray-400 border-transparent hover:text-white hover:bg-black/20'
-                            }`}
-                        >
-                          Pricing
-                        </button>
+  const filteredAsns = asnQuery
+    ? asns.filter((a) => `${a.name} ${a.asnNumber} ${a.macro || ''}`.toLowerCase().includes(asnQuery.toLowerCase()))
+    : asns;
 
-                        <button
-                          onClick={() => setActiveTab('stats')}
-                          className={`px-4 py-3 md:px-6 md:py-4 font-mono text-[10px] md:text-xs font-bold uppercase tracking-wider transition-all duration-300 border-b-2 whitespace-nowrap flex-shrink-0 ${activeTab === 'stats'
-                            ? 'text-white border-[#F20732] bg-black/30'
-                            : 'text-gray-400 border-transparent hover:text-white hover:bg-black/20'
-                            }`}
-                        >
-                          Stats
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+  const heroStats = [
+    { v: loc.peers ?? asns.length ?? 0, suffix: '+', l: 'Networks' },
+    { v: routeServers.length, l: 'Route Servers' },
+    { v: sites.length || loc.sites || 0, l: 'Enabled Sites' },
+    { v: loc.latency && loc.latency !== '-' ? loc.latency : '<2', suffix: 'ms', l: 'Latency' },
+  ];
 
-                  {/* Main Content - Tab Panels */}
-                  <div className="max-w-5xl mx-auto px-8 py-12">
+  const facts = [
+    { icon: Building2, label: 'Data Center', value: loc.datacenter },
+    { icon: Network, label: 'Exchange', value: loc.ixName || loc.code },
+    { icon: Globe, label: 'Capacity', value: loc.capacity && loc.capacity !== '-' ? `${String(loc.capacity).replace('+', '')} Tbps` : undefined },
+    { icon: Activity, label: 'Established', value: loc.established },
+  ].filter((f) => f.value);
 
-                    {/* OVERVIEW TAB */}
-                    {activeTab === 'overview' && (
-                      <>
-                        {/* Description */}
-                        <div className="mb-12">
-                          <p className="text-gray-700 text-lg leading-relaxed">
-                            {selectedLocationData.description}
-                          </p>
-                        </div>
+  return (
+    <div className="min-h-screen bg-white text-ink">
+      {/* Hero */}
+      <section className="relative bg-ink text-white overflow-hidden pt-32 md:pt-36 pb-12">
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-[#F20732]/15 blur-[120px]" />
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 relative z-10">
+          <button onClick={onBack} className="inline-flex items-center gap-2 font-mono text-label-sm tracking-mono uppercase text-gray-400 hover:text-white transition-colors mb-8 hover-trigger">
+            <ArrowLeft className="w-4 h-4" /> All locations
+          </button>
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <span className={`w-2 h-2 rounded-full ${st.dot}`} />
+                <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// {loc.region}</span>
+              </div>
+              <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-[0.9]">{loc.name}</h1>
+              <p className="text-gray-300 text-lg mt-3">{loc.country}</p>
+            </div>
+            <button onClick={() => onRequest(loc.name)} className="bg-[#F20732] text-white px-6 py-3.5 font-mono text-label-sm font-bold tracking-mono uppercase hover:bg-white hover:text-ink transition-colors flex items-center gap-2 hover-trigger">
+              Request a port <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
 
-                        {/* Technical Specs */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-                          {/* Port Speeds */}
-                          <div>
-                            <div className="flex items-center gap-3 mb-6">
-                              <div className="w-1 h-8 bg-[#F20732]"></div>
-                              <h3 className="text-xl font-black text-black">
-                                Available Port Speeds
-                              </h3>
-                            </div>
-                            <div className="flex flex-wrap gap-3">
-                              {selectedLocationData.portSpeeds.map((speed) => (
-                                <span
-                                  key={speed}
-                                  className="px-4 py-2 bg-white border-2 border-gray-200 font-mono text-sm font-bold text-black hover:border-[#F20732] transition-colors"
-                                >
-                                  {speed}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Protocols */}
-                          <div>
-                            <div className="flex items-center gap-3 mb-6">
-                              <div className="w-1 h-8 bg-black"></div>
-                              <h3 className="text-xl font-black text-black">
-                                Supported Protocols
-                              </h3>
-                            </div>
-                            <div className="flex flex-wrap gap-3">
-                              {selectedLocationData.protocols.map((protocol) => (
-                                <span
-                                  key={protocol}
-                                  className="px-4 py-2 bg-white border-2 border-gray-200 font-mono text-sm text-black"
-                                >
-                                  {protocol}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Key Features */}
-                        <div className="bg-white p-8 shadow-sm border border-gray-200 mb-12">
-                          <h3 className="text-2xl font-black text-black mb-6">
-                            Key Features
-                          </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {selectedLocationData.features.map((feature, idx) => (
-                              <div key={idx} className="flex items-start gap-3">
-                                <svg className="w-5 h-5 text-[#F20732] flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-gray-700 text-sm leading-relaxed">
-                                  {feature}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* CONNECTED NETWORKS TAB (ASNs) */}
-                    {activeTab === 'asns' && adminLocations.find(l => l.id === selectedLocationData.id)?.asnList && (
-                      <>
-                        {/* ASN Statistics */}
-                        <div className="bg-gradient-to-r from-gray-900 to-black text-white p-8 mb-12 rounded-lg">
-                          <h3 className="text-2xl font-black mb-6 flex items-center gap-3">
-                            <div className="w-1 h-8 bg-[#F20732]"></div>
-                            Connected Networks
-                          </h3>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="bg-white/10 p-6 rounded-lg border-l-4 border-[#F20732]">
-                              <div className="text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">Active ASNs</div>
-                              <div className="text-5xl font-light text-white">
-                                {adminLocations.find(l => l.id === selectedLocationData.id)?.asnList.filter(a => a.status === 'ACTIVE').length || 0}
-                              </div>
-                            </div>
-                            <div className="bg-white/10 p-6 rounded-lg border-l-4 border-gray-300">
-                              <div className="text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">Connecting ASNs</div>
-                              <div className="text-5xl font-light text-white">
-                                {adminLocations.find(l => l.id === selectedLocationData.id)?.asnList.filter(a => a.status === 'CONNECTING').length || 0}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* ASN Table */}
-                        <div className="bg-white p-8 shadow-sm border border-gray-200 mb-12">
-                          <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-2xl font-black text-black">Network ASNs</h3>
-                            <input
-                              type="text"
-                              placeholder="Search ASN or name..."
-                              value={asnSearch}
-                              onChange={(e) => setASNSearch(e.target.value)}
-                              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#F20732] font-mono text-sm"
-                            />
-                          </div>
-
-                          <div className="overflow-x-auto">
-                            <table className="w-full">
-                              <thead>
-                                <tr className="bg-gray-100 border-b-2 border-gray-300">
-                                  <th className="text-left px-4 py-3 font-mono text-xs uppercase tracking-wider text-gray-700">ASN</th>
-                                  <th className="text-left px-4 py-3 font-mono text-xs uppercase tracking-wider text-gray-700">Name</th>
-                                  <th className="text-left px-4 py-3 font-mono text-xs uppercase tracking-wider text-gray-700">Peering Policy</th>
-                                  <th className="text-left px-4 py-3 font-mono text-xs uppercase tracking-wider text-gray-700">Status</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {adminLocations.find(l => l.id === selectedLocationData.id)?.asnList
-                                  .filter(asn =>
-                                    asnSearch === '' ||
-                                    asn.asnNumber.toString().includes(asnSearch) ||
-                                    asn.name.toLowerCase().includes(asnSearch.toLowerCase())
-                                  )
-                                  .map((asn, idx) => (
-                                    <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-                                      <td className="px-4 py-4 font-mono font-bold text-black">AS{asn.asnNumber}</td>
-                                      <td className="px-4 py-4 text-gray-700">{asn.name}</td>
-                                      <td className="px-4 py-4">
-                                        <span className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-mono rounded">
-                                          {asn.peeringPolicy}
-                                        </span>
-                                      </td>
-                                      <td className="px-4 py-4">
-                                        <span className={`px-3 py-1 text-xs font-bold rounded ${asn.status === 'ACTIVE' ? 'bg-green-100 text-green-700' :
-                                          asn.status === 'CONNECTING' ? 'bg-yellow-100 text-yellow-700' :
-                                            'bg-gray-100 text-gray-700'
-                                          }`}>
-                                          {asn.status}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* ENABLED SITES TAB */}
-                    {activeTab === 'sites' && adminLocations.find(l => l.id === selectedLocationData.id)?.enabledSites && (
-                      <div className="bg-white p-8 shadow-sm border border-gray-200 mb-12">
-                        <h3 className="text-2xl font-black text-black mb-6 flex items-center gap-3">
-                          <div className="w-1 h-8 bg-[#F20732]"></div>
-                          Enabled Data Centers
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {adminLocations.find(l => l.id === selectedLocationData.id)?.enabledSites.map((site) => (
-                            <div key={site.id} className="border-2 border-gray-200 p-6 hover:border-[#F20732] transition-all duration-300 group">
-                              <div className="flex items-start justify-between mb-4">
-                                <div>
-                                  <h4 className="text-lg font-black text-black group-hover:text-[#F20732] transition-colors">
-                                    {site.name}
-                                  </h4>
-                                  <div className="text-sm font-mono text-gray-500 mt-1">{site.provider}</div>
-                                </div>
-                                <span className={`px-3 py-1 text-xs font-bold rounded ${site.status === 'available' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'
-                                  }`}>
-                                  {site.status === 'available' ? 'AVAILABLE' : 'COMING SOON'}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-600 mb-4">{site.address}</p>
-                              <button
-                                onClick={() => {
-                                  const cityName = selectedLocationData.name.charAt(0) + selectedLocationData.name.slice(1).toLowerCase();
-                                  window.dispatchEvent(new CustomEvent('navigateToContact', {
-                                    detail: { city: cityName, locationId: selectedLocationData.id, site: site.name }
-                                  }));
-                                }}
-                                className="w-full bg-black text-white px-4 py-2 font-mono text-xs font-bold uppercase tracking-wider hover:bg-[#F20732] transition-colors flex items-center justify-center gap-2"
-                                disabled={site.status !== 'available'}
-                              >
-                                {site.status === 'available' ? 'Get Connected' : 'Notify Me'}
-                                <span>→</span>
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* PRICING TAB */}
-                    {activeTab === 'pricing' && (
-                      <div className="space-y-8">
-                        <div className="flex items-center gap-3">
-                          <div className="w-1 h-8 bg-[#F20732]"></div>
-                          <h3 className="text-2xl font-black text-black">
-                            Port Pricing - {selectedLocationData.name}
-                          </h3>
-                        </div>
-
-                        {selectedLocationData.pricing && selectedLocationData.pricing.length > 0 ? (
-                          <>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                              {selectedLocationData.pricing.map((priceTier, idx) => (
-                                <div key={idx} className="bg-white border-2 border-gray-200 hover:border-[#F20732] p-6 hover:shadow-lg transition-all duration-300">
-                                  <div className="font-mono text-xs text-gray-500 uppercase tracking-widest mb-2">Port Speed</div>
-                                  <div className="text-4xl font-black text-black mb-4">{priceTier.portSpeed}</div>
-                                  <div className="space-y-2 mb-6">
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-gray-600">Setup Fee</span>
-                                      <span className="font-bold">
-                                        {priceTier.setupFee > 0
-                                          ? `${priceTier.currency || 'USD'} ${priceTier.setupFee.toLocaleString()}`
-                                          : 'Free'}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-gray-600">Monthly</span>
-                                      <span className="font-bold">
-                                        {priceTier.monthlyPrice > 0
-                                          ? `${priceTier.currency || 'USD'} ${priceTier.monthlyPrice.toLocaleString()}/mo`
-                                          : 'Contact Us'}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-gray-600">Commitment</span>
-                                      <span className="font-bold">No Lock In</span>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      const cityName = selectedLocationData.name.charAt(0) + selectedLocationData.name.slice(1).toLowerCase();
-                                      window.dispatchEvent(new CustomEvent('navigateToContact', {
-                                        detail: { city: cityName, locationId: selectedLocationData.id }
-                                      }));
-                                    }}
-                                    className="w-full py-3 bg-black text-white hover:bg-[#F20732] font-mono text-xs font-bold uppercase tracking-wider transition-colors"
-                                  >
-                                    Get Quote
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="bg-gray-50 p-6 border border-gray-200">
-                              <p className="text-sm text-gray-600">
-                                * Prices are indicative and may vary based on location, commitment period, and volume discounts.
-                                Contact our sales team for a customized quote.
-                              </p>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="bg-gray-50 p-8 border border-gray-200 text-center">
-                            <p className="text-gray-600 mb-4">Pricing information is not yet available for this location.</p>
-                            <button
-                              onClick={() => {
-                                const cityName = selectedLocationData.name.charAt(0) + selectedLocationData.name.slice(1).toLowerCase();
-                                window.dispatchEvent(new CustomEvent('navigateToContact', {
-                                  detail: { city: cityName, locationId: selectedLocationData.id }
-                                }));
-                              }}
-                              className="px-6 py-3 bg-[#F20732] text-white hover:bg-black font-mono text-xs font-bold uppercase tracking-wider transition-colors"
-                            >
-                              Contact Sales
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-
-
-                    {/* STATS TAB */}
-                    {activeTab === 'stats' && (
-                      <div className="space-y-8">
-                        <div className="flex items-center gap-3">
-                          <div className="w-1 h-8 bg-[#F20732]"></div>
-                          <h3 className="text-2xl font-black text-black">
-                            Traffic Statistics - {selectedLocationData.name}
-                          </h3>
-                          {grafanaTraffic.isLive && (
-                            <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
-                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                              <span className="text-xs font-mono font-bold text-green-700 uppercase">Live</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Stats Overview */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                          <div className="bg-white p-6 border-l-4 border-[#F20732] shadow-sm">
-                            <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-2">Peak Traffic</div>
-                            {grafanaTraffic.loading ? (
-                              <div className="text-3xl font-light text-gray-400 animate-pulse">Loading...</div>
-                            ) : (
-                              <>
-                                <div className="text-3xl font-light text-black">
-                                  {grafanaTraffic.isLive
-                                    ? grafanaTraffic.peakTraffic
-                                    : Math.round(parseFloat(selectedLocationData.capacity) * 0.85)
-                                  }
-                                  <span className="text-lg"> Tbps</span>
-                                </div>
-                                {!grafanaTraffic.isLive && (
-                                  <div className="text-xs text-gray-400 mt-1">Calculated</div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          <div className="bg-white p-6 border-l-4 border-black shadow-sm">
-                            <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-2">Avg Traffic</div>
-                            {grafanaTraffic.loading ? (
-                              <div className="text-3xl font-light text-gray-400 animate-pulse">Loading...</div>
-                            ) : (
-                              <>
-                                <div className="text-3xl font-light text-black">
-                                  {grafanaTraffic.isLive
-                                    ? grafanaTraffic.avgTraffic
-                                    : Math.round(parseFloat(selectedLocationData.capacity) * 0.55)
-                                  }
-                                  <span className="text-lg"> Tbps</span>
-                                </div>
-                                {!grafanaTraffic.isLive && (
-                                  <div className="text-xs text-gray-400 mt-1">Calculated</div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          <div className="bg-white p-6 border-l-4 border-gray-300 shadow-sm">
-                            <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-2">IPv4 Prefixes</div>
-                            <div className="text-3xl font-light text-black">{Math.round(selectedLocationData.peers * 2.4)}<span className="text-lg">K</span></div>
-                          </div>
-                          <div className="bg-white p-6 border-l-4 border-gray-300 shadow-sm">
-                            <div className="font-mono text-[10px] text-gray-500 uppercase tracking-widest mb-2">IPv6 Prefixes</div>
-                            <div className="text-3xl font-light text-black">{Math.round(selectedLocationData.peers * 0.6)}<span className="text-lg">K</span></div>
-                          </div>
-                        </div>
-
-                        {/* Traffic Breakdown */}
-                        <div className="bg-white p-8 border border-gray-200">
-                          <h4 className="font-black text-lg text-black mb-6">Traffic Breakdown by Category</h4>
-                          <div className="space-y-4">
-                            {[
-                              { label: 'Content Delivery', percent: 42 },
-                              { label: 'Cloud Providers', percent: 28 },
-                              { label: 'Enterprise', percent: 18 },
-                              { label: 'Gaming & Streaming', percent: 12 }
-                            ].map((item) => (
-                              <div key={item.label}>
-                                <div className="flex justify-between text-sm mb-2">
-                                  <span className="text-gray-700">{item.label}</span>
-                                  <span className="font-bold">{item.percent}%</span>
-                                </div>
-                                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                                  <div
-                                    className="h-full bg-[#F20732] transition-all duration-500"
-                                    style={{ width: `${item.percent}%` }}
-                                  ></div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Uptime History */}
-                        <div className="bg-white p-8 border border-gray-200">
-                          <div className="flex items-center justify-between mb-6">
-                            <h4 className="font-black text-lg text-black">Uptime History (Last 12 Months)</h4>
-                            <span className="px-3 py-1 bg-green-100 text-green-700 font-mono text-xs font-bold rounded">99.99% SLA</span>
-                          </div>
-                          <div className="flex gap-1">
-                            {Array.from({ length: 12 }).map((_, idx) => (
-                              <div
-                                key={idx}
-                                className="flex-1 h-12 bg-green-500 rounded-sm hover:bg-green-600 transition-colors cursor-pointer"
-                                title={`Month ${idx + 1}: 99.99% uptime`}
-                              ></div>
-                            ))}
-                          </div>
-                          <div className="flex justify-between mt-2 text-xs text-gray-500 font-mono">
-                            <span>Jan</span>
-                            <span>Dec</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-4 mt-8">
-                      <button
-                        onClick={() => {
-                          // Navigate to contact page - will be handled by App.tsx setPage
-                          // Convert city name to Title Case (e.g., "TOKYO" -> "Tokyo")
-                          const cityName = selectedLocationData.name.charAt(0) + selectedLocationData.name.slice(1).toLowerCase();
-                          window.dispatchEvent(new CustomEvent('navigateToContact', {
-                            detail: { city: cityName, locationId: selectedLocationData.id }
-                          }));
-                        }}
-                        className="bg-[#F20732] text-white px-8 py-4 font-mono text-xs font-bold uppercase tracking-widest hover:bg-black transition-all duration-300 flex items-center gap-3 group shadow-lg"
-                      >
-                        Request Port
-                        <span className="group-hover:translate-x-1 transition-transform">→</span>
-                      </button>
-                    </div>
-                  </div>
+          {/* Hero stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/10 border border-white/10 mt-10">
+            {heroStats.map((s) => (
+              <div key={s.l} className="bg-ink p-5">
+                <div className="text-3xl md:text-4xl font-light tracking-tighter tabular-nums">
+                  {s.v}{s.suffix && <span className="text-base text-gray-500 ml-1">{s.suffix}</span>}
                 </div>
-              ) : (
-                <div className="flex items-center justify-center h-96">
-                  <div className="text-center">
-                    <div className="text-gray-400 mb-4">
-                      <svg className="w-16 h-16 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
+                <div className="font-mono text-label-sm tracking-label uppercase text-gray-400 mt-1">{s.l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Content */}
+      <section className="max-w-[1400px] mx-auto px-6 md:px-12 py-12 md:py-16">
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* Left: overview */}
+          <div className="lg:col-span-2 space-y-10">
+            {loc.description && (
+              <div>
+                <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Overview</span>
+                <p className="text-gray-600 text-lg leading-relaxed mt-3">{loc.description}</p>
+              </div>
+            )}
+
+            {/* Facts */}
+            {facts.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200">
+                {facts.map((f) => (
+                  <div key={f.label} className="bg-white p-4">
+                    <f.icon className="w-4 h-4 text-[#F20732] mb-2" />
+                    <div className="font-mono text-label-sm tracking-label uppercase text-gray-400">{f.label}</div>
+                    <div className="text-sm font-bold text-ink mt-0.5">{f.value}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {loc.address && (
+              <div className="flex items-start gap-3 border border-gray-200 p-5">
+                <MapPin className="w-5 h-5 text-[#F20732] flex-shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-mono text-label-sm tracking-label uppercase text-gray-400 mb-1">Facility Address</div>
+                  <p className="text-sm text-ink">{loc.address}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Pricing */}
+            {pricing.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+                  <h3 className="font-mono text-label tracking-label uppercase text-ink flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-[#F20732]" /> Port Pricing
+                  </h3>
+                  <span className="font-mono text-label-sm tracking-mono uppercase text-green-600">No traffic charges</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
+                  {pricing.map((p, i) => (
+                    <div key={i} className="group relative bg-white p-5 overflow-hidden hover:bg-gray-50 transition-colors">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-[#F20732] -translate-x-full group-hover:translate-x-0 transition-transform duration-500" />
+                      <div className="font-mono text-label tracking-label uppercase text-gray-400">{p.portSpeed} Port</div>
+                      <div className="mt-3 flex items-baseline gap-1">
+                        <span className="text-3xl font-black tracking-tighter text-ink">{money(p.monthlyPrice, p.currency)}</span>
+                        <span className="text-sm text-gray-400 font-mono">/mo</span>
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                        <span className="font-mono text-label-sm tracking-label uppercase text-gray-400">Setup</span>
+                        <span className="text-sm font-bold text-ink tabular-nums">{p.setupFee ? money(p.setupFee, p.currency) : 'Free'}</span>
+                      </div>
                     </div>
-                    <p className="text-gray-500 font-mono text-sm">
-                      Select a location from the menu
-                    </p>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-3">
+                  One port unlocks the entire peering ecosystem — unlimited peering, no per-bit/traffic fees. Taxes may apply.
+                  {pricingIsIndicative && ' Prices shown are indicative — contact us for a formal quote.'}
+                </p>
+              </div>
+            )}
+
+            {/* Route servers */}
+            {routeServers.length > 0 && (
+              <div>
+                <h3 className="font-mono text-label tracking-label uppercase text-ink mb-4 flex items-center gap-2"><Server className="w-4 h-4 text-[#F20732]" /> Route Servers</h3>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {routeServers.map((rs, i) => (
+                    <div key={i} className="border border-gray-200 p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-bold text-ink">{rs.name}</span>
+                        <span className="font-mono text-xs text-gray-400">AS{rs.asn}</span>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2"><span className="font-mono text-label-sm tracking-label uppercase text-gray-400">IPv4</span><CopyChip value={rs.ipv4} /></div>
+                        <div className="flex items-center justify-between gap-2"><span className="font-mono text-label-sm tracking-label uppercase text-gray-400">IPv6</span><CopyChip value={rs.ipv6} /></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Connected networks */}
+            {asns.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+                  <h3 className="font-mono text-label tracking-label uppercase text-ink flex items-center gap-2"><Network className="w-4 h-4 text-[#F20732]" /> Connected Networks <span className="text-gray-400">({asns.length})</span></h3>
+                  {asns.length > 6 && (
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input value={asnQuery} onChange={(e) => setAsnQuery(e.target.value)} placeholder="Search ASN…" className="pl-9 pr-3 py-2 border border-gray-300 font-mono text-sm focus:outline-none focus:border-[#F20732] w-48" />
+                    </div>
+                  )}
+                </div>
+                <div className="border border-gray-200 divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                  {filteredAsns.map((a, i) => (
+                    <div key={i} className="px-4 py-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="font-bold text-ink">{a.name}</span>
+                        <span className="font-mono text-xs text-gray-400 ml-2">AS{a.asnNumber}</span>
+                        {a.macro && <span className="font-mono text-xs text-gray-400 ml-2">{a.macro}</span>}
+                      </div>
+                      <span className="font-mono text-label-sm tracking-mono uppercase text-gray-400 flex-shrink-0">{a.peeringPolicy}</span>
+                    </div>
+                  ))}
+                  {!filteredAsns.length && <p className="px-4 py-6 text-center font-mono text-label-sm tracking-mono uppercase text-gray-400">No match</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Enabled sites */}
+            {sites.length > 0 && (
+              <div>
+                <h3 className="font-mono text-label tracking-label uppercase text-ink mb-4 flex items-center gap-2"><Building2 className="w-4 h-4 text-[#F20732]" /> Enabled Sites</h3>
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {sites.map((s, i) => (
+                    <div key={i} className="border border-gray-200 p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-sm text-ink">{s.name}</p>
+                        {s.status && <span className="font-mono text-label-sm tracking-mono uppercase text-gray-400">{s.status === 'available' ? 'Available' : 'Soon'}</span>}
+                      </div>
+                      <p className="font-mono text-xs text-gray-400 mt-0.5">{s.provider}</p>
+                      {s.address && <p className="text-xs text-gray-500 mt-1">{s.address}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: sticky info / connect */}
+          <aside className="lg:col-span-1">
+            <div className="lg:sticky lg:top-24 space-y-6">
+              {portSpeeds.length > 0 && (
+                <div className="border border-gray-200 p-5">
+                  <h3 className="font-mono text-label tracking-label uppercase text-ink mb-3">Port Speeds</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {portSpeeds.map((s) => (
+                      <span key={s} className="px-3 py-1.5 border border-gray-300 font-mono text-label-sm tracking-mono uppercase text-ink">{s}</span>
+                    ))}
                   </div>
                 </div>
               )}
-            </main>
-          </div>
-        </div>
-      </section>
 
-      {/* Stats Footer */}
-      <section className="relative bg-black py-24">
-        {/* Carbon Fiber Texture */}
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5"></div>
+              {features.length > 0 && (
+                <div className="border border-gray-200 p-5">
+                  <h3 className="font-mono text-label tracking-label uppercase text-ink mb-3">Highlights</h3>
+                  <div className="space-y-2">
+                    {features.map((f) => (
+                      <div key={f} className="flex items-start gap-2 text-sm text-gray-600">
+                        <Check className="w-4 h-4 text-[#F20732] flex-shrink-0 mt-0.5" /> {f}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-        <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Cities POPs */}
-            <div className="bg-[#0a0a0a] border-2 border-[#1a1a1a] p-10 text-center hover:border-[#F20732] transition-all duration-500 group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#F20732]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative z-10">
-                <div className="text-6xl md:text-7xl font-light tracking-tighter text-white mb-3 group-hover:text-[#F20732] transition-colors duration-300">
-                  {locations.length}
-                </div>
-                <div className="h-px w-12 bg-[#F20732] mx-auto mb-3"></div>
-                <div className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.2em] group-hover:text-gray-300 transition-colors">
-                  Cities POPs
-                </div>
+              <div className="bg-ink text-white p-6 relative overflow-hidden">
+                <div className="absolute -top-16 -right-12 w-44 h-44 rounded-full bg-[#F20732]/15 blur-[80px]" />
+                <ShieldCheck className="w-6 h-6 text-[#F20732] mb-3" />
+                <h3 className="text-xl font-black tracking-tight mb-1">Connect at {loc.name}</h3>
+                <p className="text-gray-400 text-sm mb-4">Get availability and pricing for a port at this location.</p>
+                <button onClick={() => onRequest(loc.name)} className="w-full bg-[#F20732] text-white px-5 py-3 font-mono text-label-sm font-bold tracking-mono uppercase hover:bg-white hover:text-ink transition-colors flex items-center justify-center gap-2 hover-trigger">
+                  Request a port <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
-
-            {/* Total Peers */}
-            <div className="bg-[#0a0a0a] border-2 border-[#1a1a1a] p-10 text-center hover:border-[#F20732] transition-all duration-500 group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#F20732]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative z-10">
-                <div className="text-6xl md:text-7xl font-light tracking-tighter text-white mb-3 group-hover:text-[#F20732] transition-colors duration-300">
-                  4,410
-                </div>
-                <div className="h-px w-12 bg-[#F20732] mx-auto mb-3"></div>
-                <div className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.2em] group-hover:text-gray-300 transition-colors">
-                  Total Peers
-                </div>
-              </div>
-            </div>
-
-            {/* Uptime */}
-            <div className="bg-[#0a0a0a] border-2 border-[#1a1a1a] p-10 text-center hover:border-[#F20732] transition-all duration-500 group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#F20732]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative z-10">
-                <div className="text-6xl md:text-7xl font-light tracking-tighter text-white mb-3 group-hover:text-[#F20732] transition-colors duration-300">
-                  99.99%
-                </div>
-                <div className="h-px w-12 bg-[#F20732] mx-auto mb-3"></div>
-                <div className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.2em] group-hover:text-gray-300 transition-colors">
-                  Uptime SLA
-                </div>
-              </div>
-            </div>
-
-            {/* Support */}
-            <div className="bg-[#0a0a0a] border-2 border-[#1a1a1a] p-10 text-center hover:border-[#F20732] transition-all duration-500 group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-[#F20732]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="relative z-10">
-                <div className="text-6xl md:text-7xl font-light tracking-tighter text-white mb-3 group-hover:text-[#F20732] transition-colors duration-300">
-                  24/7
-                </div>
-                <div className="h-px w-12 bg-[#F20732] mx-auto mb-3"></div>
-                <div className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.2em] group-hover:text-gray-300 transition-colors">
-                  Support
-                </div>
-              </div>
-            </div>
-          </div>
+          </aside>
         </div>
       </section>
     </div>
