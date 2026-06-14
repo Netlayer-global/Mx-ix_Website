@@ -1,5 +1,5 @@
 import { Organization, PortalUser, Order, Ticket, Port } from '../models';
-import { sendEmail } from './mailer.service';
+import { sendEmail, renderTemplate } from './mailer.service';
 import { notify } from './notification.service';
 
 /**
@@ -23,7 +23,7 @@ export async function sendWeeklyDigests(): Promise<number> {
       ]);
 
       const summary = `Ports: ${portCount} · Open orders: ${openOrders} · Open tickets: ${openTickets}`;
-      const html = `
+      const fallbackHtml = `
         <h2>MX-IX weekly summary — ${org.name}</h2>
         <ul>
           <li><strong>Ports:</strong> ${portCount}</li>
@@ -34,9 +34,21 @@ export async function sendWeeklyDigests(): Promise<number> {
         <p>Sign in to the member portal for full details.</p>
         <p>— MX-IX</p>`;
 
+      const { subject, html } = await renderTemplate(
+        'weekly_digest',
+        {
+          org: org.name,
+          ports: portCount,
+          openOrders,
+          openTickets,
+          asn: org.asn ? `AS${org.asn}` : '—',
+        },
+        { subject: 'Your weekly MX-IX summary', html: fallbackHtml }
+      );
+
       const recipients = users.map((u) => u.email).filter(Boolean);
       if (recipients.length) {
-        for (const to of recipients) await sendEmail(to, 'Your weekly MX-IX summary', html);
+        for (const to of recipients) await sendEmail(to, subject, html);
       }
       await notify(String(org._id), {
         type: 'system',

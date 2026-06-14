@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import config from '../config/environment';
+import { EmailTemplate } from '../models';
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -60,4 +61,35 @@ export const sendEmail = async (to: string, subject: string, html: string): Prom
   }
 };
 
-export default { sendBulkEmail, sendEmail };
+/**
+ * Fill {{placeholder}} variables in a string.
+ */
+const fillVars = (text: string, vars: Record<string, string | number>): string =>
+  text.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, k) => (vars[k] !== undefined ? String(vars[k]) : ''));
+
+/**
+ * Resolve an editable EmailTemplate by key and fill its {{placeholders}}.
+ * Falls back to the provided default subject/html when the template is
+ * missing, disabled or empty — so every flow keeps working even before an
+ * admin has customised the copy.
+ */
+export const renderTemplate = async (
+  key: string,
+  vars: Record<string, string | number>,
+  fallback: { subject: string; html: string }
+): Promise<{ subject: string; html: string }> => {
+  try {
+    const tpl = await EmailTemplate.findOne({ key }).lean();
+    if (tpl && tpl.enabled && (tpl.subject || tpl.body)) {
+      return {
+        subject: fillVars(tpl.subject || fallback.subject, vars),
+        html: fillVars(tpl.body || fallback.html, vars),
+      };
+    }
+  } catch (err) {
+    console.error(`[Mailer] template "${key}" lookup failed, using fallback:`, err);
+  }
+  return fallback;
+};
+
+export default { sendBulkEmail, sendEmail, renderTemplate };

@@ -6,7 +6,7 @@ import { PortalUser, Organization } from '../models';
 import { IOrganization } from '../models/organization.model';
 import { IPortalUser } from '../models/portalUser.model';
 import config from '../config/environment';
-import { sendEmail } from '../services/mailer.service';
+import { sendEmail, renderTemplate } from '../services/mailer.service';
 
 const signToken = (user: IPortalUser): string =>
   jwt.sign(
@@ -227,15 +227,19 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
       const base = config.frontendUrl.replace(/\/$/, '');
       const link = `${base}/portal?reset=${token}`;
-      await sendEmail(
-        user.email,
-        'Reset your MX-IX portal password',
-        `<p>Hi ${user.name},</p>
+      const { subject, html } = await renderTemplate(
+        'password_reset',
+        { name: user.name || 'there', link, email: user.email },
+        {
+          subject: 'Reset your MX-IX portal password',
+          html: `<p>Hi ${user.name},</p>
          <p>We received a request to reset your MX-IX member portal password. This link is valid for one hour:</p>
          <p><a href="${link}">${link}</a></p>
          <p>If you didn't request this, you can safely ignore this email.</p>
-         <p>— MX-IX</p>`
+         <p>— MX-IX</p>`,
+        }
       );
+      await sendEmail(user.email, subject, html);
     }
 
     res.json(generic);
