@@ -590,6 +590,11 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
             <p className="max-w-xs text-gray-400 text-sm leading-relaxed font-light">
               The carrier-neutral Internet Exchange where networks meet to peer directly — faster, cheaper and more resilient interconnection.
             </p>
+            <div className="flex items-center gap-3 font-mono text-label-sm tracking-label uppercase text-gray-500">
+              <span className="text-gray-200">AS141539</span>
+              <span className="w-px h-3 bg-white/15" />
+              <a href="https://www.peeringdb.com/asn/141539" target="_blank" rel="noopener noreferrer" className="hover:text-[#F20732] transition-colors hover-trigger">PeeringDB ↗</a>
+            </div>
           </div>
 
           {/* Company */}

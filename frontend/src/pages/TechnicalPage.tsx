@@ -204,6 +204,26 @@ const TechnicalPage = () => {
         </div>
       </section>
 
+      {/* MX-IX peering information */}
+      <section className="border-b border-gray-200 bg-gray-50">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
+            <div className="bg-white p-5">
+              <div className="font-mono text-label-sm tracking-label uppercase text-gray-400">MX-IX ASN</div>
+              <div className="text-xl font-black tracking-tighter text-ink mt-1">AS141539</div>
+            </div>
+            <div className="bg-white p-5">
+              <div className="font-mono text-label-sm tracking-label uppercase text-gray-400">PeeringDB</div>
+              <a href="https://www.peeringdb.com/asn/141539" target="_blank" rel="noopener noreferrer" className="text-xl font-bold tracking-tight text-ink mt-1 inline-block hover:text-[#F20732] transition-colors hover-trigger">as141539 ↗</a>
+            </div>
+            <div className="bg-white p-5">
+              <div className="font-mono text-label-sm tracking-label uppercase text-gray-400">Peering Desk</div>
+              <a href="mailto:peering@mx-ix.com" className="text-lg font-bold tracking-tight text-ink mt-1 inline-block hover:text-[#F20732] transition-colors hover-trigger break-all">peering@mx-ix.com</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Main content */}
       <section className="max-w-[1400px] mx-auto px-6 md:px-12 py-14 md:py-16">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
