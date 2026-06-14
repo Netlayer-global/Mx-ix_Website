@@ -458,7 +458,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
           </button>
           <button
             ref={connectMagneticRef}
-            onClick={() => setPage('onboarding')}
+            onClick={() => setPage('contact')}
             className="hover-trigger bg-[#F20732] text-white px-6 py-3 font-mono text-label-sm font-bold tracking-mono hover:bg-black transition-[transform,background-color,box-shadow] duration-200 flex items-center gap-3 group shadow-red-glow hover:shadow-elevated uppercase will-change-transform"
           >
             Connect <span className="text-sm leading-none mb-0.5 group-hover:translate-x-1 transition-transform">→</span>
@@ -545,7 +545,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
                 Member Login
               </button>
               <button
-                onClick={() => handleNavClick('onboarding')}
+                onClick={() => handleNavClick('contact')}
                 className="w-full bg-[#F20732] text-white px-6 py-4 font-mono text-xs font-bold tracking-[0.2em] hover:bg-black transition-colors flex items-center justify-center gap-3 group shadow-lg shadow-[#F20732]/20 uppercase rounded-lg"
               >
                 Connect <span className="text-sm leading-none group-hover:translate-x-1 transition-transform">→</span>
