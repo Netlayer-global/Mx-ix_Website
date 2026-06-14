@@ -372,29 +372,6 @@ const ServicesPage = () => {
         </section>
       )}
 
-      {/* How to get started */}
-      {!loading && !error && (
-        <section className="bg-gray-50 border-b border-gray-200">
-          <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16">
-            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Get Started</span>
-            <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">From request to live in three steps</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
-              {[
-                { n: '01', t: 'Choose a service', d: 'Pick the peering, interconnect or protection service that fits your network.' },
-                { n: '02', t: 'Order & provision', d: 'Our team confirms availability, cross-connect and pricing, then provisions your port.' },
-                { n: '03', t: 'Peer & go live', d: 'Turn up BGP to the route servers and start exchanging traffic across the fabric.' },
-              ].map((s) => (
-                <div key={s.n} className="bg-white p-8">
-                  <div className="text-5xl font-black tracking-tighter text-gray-200">{s.n}</div>
-                  <h3 className="font-bold text-ink mt-4 mb-1.5">{s.t}</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">{s.d}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Who connects */}
       {!loading && !error && (
         <section className="border-b border-gray-200 bg-white">
@@ -455,6 +432,29 @@ const ServicesPage = () => {
                   );
                 })}
               </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* How to get started */}
+      {!loading && !error && (
+        <section className="bg-gray-50 border-b border-gray-200">
+          <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-16">
+            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732]">// Get Started</span>
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">From request to live in three steps</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-gray-200 border border-gray-200">
+              {[
+                { n: '01', t: 'Choose a service', d: 'Pick the peering, interconnect or protection service that fits your network.' },
+                { n: '02', t: 'Order & provision', d: 'Our team confirms availability, cross-connect and pricing, then provisions your port.' },
+                { n: '03', t: 'Peer & go live', d: 'Turn up BGP to the route servers and start exchanging traffic across the fabric.' },
+              ].map((s) => (
+                <div key={s.n} className="bg-white p-8">
+                  <div className="text-5xl font-black tracking-tighter text-gray-200">{s.n}</div>
+                  <h3 className="font-bold text-ink mt-4 mb-1.5">{s.t}</h3>
+                  <p className="text-sm text-gray-500 leading-relaxed">{s.d}</p>
+                </div>
+              ))}
             </div>
           </div>
         </section>
