@@ -836,7 +836,7 @@ const LocationsAdminPanel: React.FC<LocationsAdminPanelProps> = ({ embedded = fa
                   <div className="flex justify-between items-center bg-slate-700/50 p-2 rounded">
                     <h4 className="text-white font-medium flex items-center gap-2"><Shield size={16} /> Route Servers</h4>
                     <button
-                      onClick={() => setEditingLocation({ ...editingLocation, routeServers: [...(editingLocation.routeServers || []), { name: `RS${(editingLocation.routeServers?.length || 0) + 1}`, asn: '49378', ipv4: '', ipv6: '' }] })}
+                      onClick={() => setEditingLocation({ ...editingLocation, routeServers: [...(editingLocation.routeServers || []), { name: `RS${(editingLocation.routeServers?.length || 0) + 1}`, asn: '141539', ipv4: '', ipv6: '' }] })}
                       className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded"
                     >+ Add Route Server</button>
                   </div>
@@ -860,7 +860,7 @@ const LocationsAdminPanel: React.FC<LocationsAdminPanelProps> = ({ embedded = fa
                           <label className="block text-xs text-slate-500 mb-1">ASN</label>
                           <input
                             value={rs.asn}
-                            placeholder="49378"
+                            placeholder="141539"
                             onChange={e => {
                               const newRS = [...(editingLocation.routeServers || [])];
                               newRS[idx].asn = e.target.value;
