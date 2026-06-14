@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { authenticator } from 'otplib';
-import { PortalUser, Organization } from '../models';
+import { PortalUser, Organization, Order } from '../models';
 import { IOrganization } from '../models/organization.model';
 import { IPortalUser } from '../models/portalUser.model';
 import config from '../config/environment';
@@ -50,7 +50,10 @@ const publicOrg = (org: IOrganization) => ({
  */
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { companyName, asn, website, type, contactName, email, password } = req.body;
+    const {
+      companyName, asn, website, type, contactName, email, password,
+      phone, peeringPolicy, additionalAsns, locations, desiredSpeed, notes,
+    } = req.body;
 
     if (!companyName || !email || !password || !contactName) {
       res.status(400).json({ success: false, error: 'Company name, your name, email and password are required.' });
@@ -67,11 +70,23 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const extraAsns = Array.isArray(additionalAsns)
+      ? additionalAsns.map((a: any) => Number(a)).filter((n: number) => Number.isFinite(n) && n > 0)
+      : [];
+    const orgLocations = Array.isArray(locations) ? locations.filter(Boolean).map((l: any) => String(l)) : [];
+    const allowedPolicy = ['Open', 'Selective', 'Restrictive'].includes(peeringPolicy) ? peeringPolicy : 'Open';
+
     const org = await Organization.create({
       name: String(companyName).trim(),
       asn: asn ? Number(asn) : undefined,
+      additionalAsns: extraAsns,
       website: website ? String(website).trim() : '',
       type: type || 'ISP',
+      peeringPolicy: allowedPolicy,
+      locations: orgLocations,
+      nocEmail: String(email).toLowerCase().trim(),
+      nocPhone: phone ? String(phone).trim() : '',
+      notes: notes ? String(notes).trim() : '',
       status: 'pending',
     });
 
@@ -82,6 +97,25 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       name: String(contactName).trim(),
       role: 'admin',
     });
+
+    // Capture the connectivity request as an initial port application so it
+    // surfaces in Admin → Orders for the team to action.
+    if (orgLocations.length && desiredSpeed) {
+      try {
+        await Order.create({
+          organization: org._id,
+          type: 'new_port',
+          location: orgLocations[0],
+          speed: String(desiredSpeed),
+          notes: notes ? String(notes).trim() : 'Submitted via onboarding',
+          status: 'submitted',
+          createdBy: String(email).toLowerCase().trim(),
+          updates: [{ status: 'submitted', message: 'Created via onboarding wizard', by: String(contactName).trim(), at: new Date() }],
+        });
+      } catch (orderErr) {
+        console.error('Onboarding order creation failed (account still created):', orderErr);
+      }
+    }
 
     res.status(201).json({
       success: true,

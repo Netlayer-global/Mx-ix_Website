@@ -27,6 +27,7 @@ const NetworksPage = lazy(() => import('./pages/NetworksPage'));
 const MembersPage = lazy(() => import('./pages/MembersPage'));
 const StatusPage = lazy(() => import('./pages/StatusPage'));
 const PortalPage = lazy(() => import('./pages/PortalPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const GlobalFabric = lazy(() => import('./components/GlobalFabric'));
 const HeroNetworkMap = lazy(() => import('./components/HeroNetworkMap'));
 
@@ -46,6 +47,7 @@ const PATH_BY_PAGE: Record<string, string> = {
   status: '/status',
   portal: '/portal',
   admin: '/admin',
+  onboarding: '/onboarding',
 };
 
 const PAGE_BY_PATH: Record<string, string> = {
@@ -63,6 +65,7 @@ const PAGE_BY_PATH: Record<string, string> = {
   status: 'status',
   portal: 'portal',
   admin: 'admin',
+  onboarding: 'onboarding',
 };
 
 const PAGE_TITLES: Record<string, string> = {
@@ -79,6 +82,7 @@ const PAGE_TITLES: Record<string, string> = {
   lg: 'Looking Glass — MX-IX Route Servers',
   status: 'System Status — MX-IX',
   portal: 'Member Portal — MX-IX',
+  onboarding: 'Become a Member — MX-IX Onboarding',
 };
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
@@ -95,6 +99,7 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   lg: 'MX-IX Looking Glass — inspect BGP sessions, route servers and routing tables across the exchange in real time.',
   status: 'Live operational status of MX-IX route servers, peering fabric and locations, plus incident history.',
   portal: 'MX-IX Member Portal — manage your ports, peering sessions, traffic and account.',
+  onboarding: 'Join MX-IX in a few quick steps — set up your member account and request your first port.',
 };
 
 // Update document title + SEO meta tags for the current page
@@ -453,7 +458,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
           </button>
           <button
             ref={connectMagneticRef}
-            onClick={() => setPage('contact')}
+            onClick={() => setPage('onboarding')}
             className="hover-trigger bg-[#F20732] text-white px-6 py-3 font-mono text-label-sm font-bold tracking-mono hover:bg-black transition-[transform,background-color,box-shadow] duration-200 flex items-center gap-3 group shadow-red-glow hover:shadow-elevated uppercase will-change-transform"
           >
             Connect <span className="text-sm leading-none mb-0.5 group-hover:translate-x-1 transition-transform">→</span>
@@ -540,7 +545,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
                 Member Login
               </button>
               <button
-                onClick={() => handleNavClick('contact')}
+                onClick={() => handleNavClick('onboarding')}
                 className="w-full bg-[#F20732] text-white px-6 py-4 font-mono text-xs font-bold tracking-[0.2em] hover:bg-black transition-colors flex items-center justify-center gap-3 group shadow-lg shadow-[#F20732]/20 uppercase rounded-lg"
               >
                 Connect <span className="text-sm leading-none group-hover:translate-x-1 transition-transform">→</span>
@@ -875,6 +880,8 @@ function AppContent() {
         return <StatusPage />;
       case 'portal':
         return <PortalPage onNavigate={handleSetPage} />;
+      case 'onboarding':
+        return <OnboardingPage onNavigate={handleSetPage} />;
       case 'admin':
         return <AdminDashboard />;
       default:

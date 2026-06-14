@@ -783,6 +783,12 @@ export const portalApi = {
     contactName: string;
     email: string;
     password: string;
+    phone?: string;
+    peeringPolicy?: string;
+    additionalAsns?: number[];
+    locations?: string[];
+    desiredSpeed?: string;
+    notes?: string;
   }) => portalApiCall<void>('/portal/auth/signup', { method: 'POST', body: JSON.stringify(data) }),
 
   login: async (email: string, password: string, token?: string) => {
