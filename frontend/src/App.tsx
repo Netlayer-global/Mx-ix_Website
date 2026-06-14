@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import OrbitalLogoAdvanced from './components/OrbitalLogoAdvanced';
 import Reveal from './components/Reveal';
 import SectionCorners from './components/SectionCorners';
 import CountUp from './components/CountUp';
@@ -375,9 +374,9 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
         {/* Logo */}
         <div className="flex-shrink-0 flex items-center justify-start z-50">
           <button onClick={handleLogoClick} onMouseEnter={handleLogoHover} className="flex items-center gap-1.5 hover-trigger group">
-            <div className="flex items-center gap-1.5">
-              <OrbitalLogoAdvanced isAnimating={false} />
-              <span className={`font-bold tracking-tight text-xl sm:text-2xl ${getTextColor()}`}>MX-IX</span>
+            <div className="flex items-center gap-2.5">
+              <img src="/assets/logo.png" alt="MX-IX Logo" className="w-9 h-9 sm:w-10 sm:h-10 object-contain" />
+              <span className={`text-xl sm:text-2xl font-black tracking-tighter leading-none ${getTextColor()}`}>MX-IX</span>
             </div>
           </button>
         </div>
@@ -555,8 +554,6 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
 };
 
 const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
-  const ctaMagneticRef = useMagnetic<HTMLButtonElement>(0.3);
-
   const companyLinks = [
     { label: 'About Us', page: 'about' },
     { label: 'Services', page: 'services' },
@@ -582,28 +579,10 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
 
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 md:px-12">
 
-        {/* ── CTA BAND ───────────────────────────────────────── */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 py-10 border-b border-white/10">
-          <div>
-            <span className="font-mono text-label-sm tracking-mono uppercase text-[#F20732] mb-2.5 block">// Peer With Us</span>
-            <h2 className="text-2xl md:text-3xl font-black tracking-tight leading-tight">
-              Ready to join the <span className="text-[#F20732]">Fabric</span>?
-            </h2>
-          </div>
-          <button
-            ref={ctaMagneticRef}
-            onClick={() => setPage('contact')}
-            className="hover-trigger self-start md:self-auto bg-[#F20732] text-white px-7 py-3.5 font-mono text-label-sm font-bold tracking-mono uppercase hover:bg-white hover:text-[#0A0A0B] transition-[transform,background-color,color,box-shadow] duration-200 flex items-center gap-3 group shadow-[0_8px_30px_-6px_rgba(242,7,50,0.4)] will-change-transform whitespace-nowrap"
-          >
-            Initialize Peering
-            <span className="group-hover:translate-x-1 transition-transform">→</span>
-          </button>
-        </div>
-
         {/* ── MAIN GRID ──────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10 py-12">
+        <div className="grid grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10 pt-16 pb-12">
           {/* Brand */}
-          <div className="col-span-2 lg:col-span-5 space-y-4">
+          <div className="col-span-2 lg:col-span-5 space-y-5">
             <div className="flex items-center gap-2.5">
               <img src="/assets/logo.png" alt="MX-IX Logo" className="w-10 h-10 object-contain" />
               <span className="text-2xl font-black tracking-tighter leading-none">MX-IX</span>
@@ -611,6 +590,13 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
             <p className="max-w-xs text-gray-400 text-sm leading-relaxed font-light">
               The carrier-neutral Internet Exchange where networks meet to peer directly — faster, cheaper and more resilient interconnection.
             </p>
+            <button
+              onClick={() => setPage('contact')}
+              className="hover-trigger inline-flex items-center gap-3 bg-[#F20732] text-white px-6 py-3 font-mono text-label-sm font-bold tracking-mono uppercase hover:bg-white hover:text-[#0A0A0B] transition-colors group"
+            >
+              Request a Port
+              <span className="group-hover:translate-x-1 transition-transform">→</span>
+            </button>
           </div>
 
           {/* Company */}
@@ -650,14 +636,22 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
             </ul>
           </div>
 
-          {/* Office */}
-          <div className="lg:col-span-3">
-            <h4 className="font-mono font-bold mb-4 uppercase tracking-label text-label-sm text-gray-500">Registered Office</h4>
-            <p className="font-mono text-xs text-gray-400 leading-relaxed">
-              MX-IX Digital Infrastructure Pvt. Ltd.<br />
-              Enkay Tower, Udyog Vihar Phase V,<br />
-              Sector 19, Gurugram, India 122016
-            </p>
+          {/* Office + contact */}
+          <div className="lg:col-span-3 space-y-6">
+            <div>
+              <h4 className="font-mono font-bold mb-4 uppercase tracking-label text-label-sm text-gray-500">Registered Office</h4>
+              <p className="font-mono text-xs text-gray-400 leading-relaxed">
+                MX-IX Digital Infrastructure Pvt. Ltd.<br />
+                Enkay Tower, Udyog Vihar Phase V,<br />
+                Sector 19, Gurugram, India 122016
+              </p>
+            </div>
+            <div>
+              <h4 className="font-mono font-bold mb-3 uppercase tracking-label text-label-sm text-gray-500">Get in touch</h4>
+              <a href="mailto:peering@mx-ix.com" className="font-mono text-xs text-gray-300 hover:text-[#F20732] transition-colors hover-trigger">
+                peering@mx-ix.com
+              </a>
+            </div>
           </div>
         </div>
 
@@ -666,6 +660,11 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
           <span className="font-mono text-label-sm text-gray-500 uppercase tracking-label text-center md:text-left">
             © 2026 MX-IX Digital Infrastructure Pvt. Ltd. — All Rights Reserved
           </span>
+          <div className="flex items-center gap-5 font-mono text-label-sm uppercase tracking-label text-gray-500">
+            <button onClick={() => setPage('pricing')} className="hover:text-[#F20732] transition-colors hover-trigger">Pricing</button>
+            <button onClick={() => setPage('technical')} className="hover:text-[#F20732] transition-colors hover-trigger">Technical</button>
+            <button onClick={() => setPage('contact')} className="hover:text-[#F20732] transition-colors hover-trigger">Contact</button>
+          </div>
         </div>
       </div>
     </footer>

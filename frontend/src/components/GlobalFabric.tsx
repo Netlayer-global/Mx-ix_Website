@@ -367,59 +367,6 @@ const GlobalFabricMap = () => {
             </div>
           </div>
         </div>
-
-        {/* Network Stats */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[
-            { 
-              label: "CONTINENTS", 
-              value: new Set(locations.filter(l => l.continentId).map(l => l.continentId.trim())).size.toString(), 
-              Icon: Globe2, 
-              color: "#F20732" 
-            },
-            { 
-              label: "COUNTRIES", 
-              value: (() => {
-                const countries = new Set(locations.filter(l => l.country && l.country.trim() !== '').map(l => l.country!.trim()));
-
-                return countries.size.toString();
-              })(), 
-              Icon: Map, 
-              color: "#F20746" 
-            },
-            { 
-              label: "CONNECTED ASNS", 
-              value: locations.reduce((acc, loc) => acc + (loc.asnList?.length || 0), 0).toString(), 
-              Icon: Network, 
-              color: "#A6032F" 
-            },
-            { 
-              label: "AVG LATENCY", 
-              value: globalFabricStats?.avgLatency || "<5ms", 
-              Icon: Clock, 
-              color: "#F20732" 
-            },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className="relative group bg-gradient-to-br from-[#0a0a0a] to-[#0f0f0f] border border-gray-800/50 rounded-xl p-6 hover:border-[#F20732]/50 transition-all duration-300 overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-gradient-to-br from-[#F20732]/0 via-[#F20746]/5 to-[#F20732]/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              
-              <div className="relative flex flex-col items-center text-center">
-                <div className="mb-3">
-                  <stat.Icon className="w-8 h-8 text-[#F20732]" strokeWidth={2.5} />
-                </div>
-                <div className="text-2xl font-black text-white mb-1 tracking-tight">
-                  {stat.value}
-                </div>
-                <div className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#F20732]/80">
-                  {stat.label}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
 
       <style>{`
