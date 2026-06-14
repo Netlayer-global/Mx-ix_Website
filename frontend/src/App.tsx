@@ -375,7 +375,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
         <div className="flex-shrink-0 flex items-center justify-start z-50">
           <button onClick={handleLogoClick} onMouseEnter={handleLogoHover} className="flex items-center gap-1.5 hover-trigger group">
             <div className="flex items-center gap-1.5">
-              <img src="/assets/logo.png" alt="MX-IX Logo" className="w-9 h-9 sm:w-10 sm:h-10 object-contain" />
+              <img src="/assets/logo-mark.png" alt="MX-IX Logo" width="40" height="40" decoding="async" className="w-9 h-9 sm:w-10 sm:h-10 object-contain" />
               <span className={`text-xl sm:text-2xl font-black tracking-tighter leading-none ${getTextColor()}`}>MX-IX</span>
             </div>
           </button>
@@ -584,7 +584,7 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
           {/* Brand */}
           <div className="col-span-2 lg:col-span-5 space-y-5">
             <div className="flex items-center gap-1.5">
-              <img src="/assets/logo.png" alt="MX-IX Logo" className="w-10 h-10 object-contain" />
+              <img src="/assets/logo-mark.png" alt="MX-IX Logo" width="40" height="40" loading="lazy" decoding="async" className="w-10 h-10 object-contain" />
               <span className="text-2xl font-black tracking-tighter leading-none">MX-IX</span>
             </div>
             <p className="max-w-xs text-gray-400 text-sm leading-relaxed font-light">
