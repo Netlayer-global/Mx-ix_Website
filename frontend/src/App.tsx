@@ -590,13 +590,6 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
             <p className="max-w-xs text-gray-400 text-sm leading-relaxed font-light">
               The carrier-neutral Internet Exchange where networks meet to peer directly — faster, cheaper and more resilient interconnection.
             </p>
-            <button
-              onClick={() => setPage('contact')}
-              className="hover-trigger inline-flex items-center gap-3 bg-[#F20732] text-white px-6 py-3 font-mono text-label-sm font-bold tracking-mono uppercase hover:bg-white hover:text-[#0A0A0B] transition-colors group"
-            >
-              Request a Port
-              <span className="group-hover:translate-x-1 transition-transform">→</span>
-            </button>
           </div>
 
           {/* Company */}
