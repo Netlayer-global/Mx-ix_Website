@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" style="background: linear-gradient(135deg, #F9FAFB 0%, #FFFFFF 100%);">
+  <defs>
+    <!-- Red glow filter for nodes -->
+    <filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Stronger glow for nodes -->
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#F20732;stop-opacity:0.8" />
+      <stop offset="40%" style="stop-color:#F20732;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#F20732;stop-opacity:0" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Dotted World Map -->
+  <g id="worldMap" fill="#C0C0C0">
+    <!-- This is a simplified representation using circles for dots -->
+    <!-- We'll create a pattern for efficient rendering -->
+    
+    <!-- North America -->
+    <g id="northAmerica">
+      ${Array.from({length: 150}, (_, i) => {
+        const x = 120 + (i % 15) * 12 + Math.random() * 8;
+        const y = 150 + Math.floor(i / 15) * 12 + Math.random() * 8;
+        return `<circle cx="${x}" cy="${y}" r="1.5"/>`;
+      }).join('\n      ')}
+    </g>
+    
+    <!-- Europe -->
+    <g id="europe">
+      ${Array.from({length: 120}, (_, i) => {
+        const x = 750 + (i % 12) * 10 + Math.random() * 6;
+        const y = 180 + Math.floor(i / 12) * 10 + Math.random() * 6;
+        return `<circle cx="${x}" cy="${y}" r="1.5"/>`;
+      }).join('\n      ')}
+    </g>
+    
+    <!-- Asia -->
+    <g id="asia">
+      ${Array.from({length: 250}, (_, i) => {
+        const x = 950 + (i % 20) * 12 + Math.random() * 8;
+        const y = 140 + Math.floor(i / 20) * 14 + Math.random() * 8;
+        return `<circle cx="${x}" cy="${y}" r="1.5"/>`;
+      }).join('\n      ')}
+    </g>
+    
+    <!-- Africa -->
+    <g id="africa">
+      ${Array.from({length: 140}, (_, i) => {
+        const x = 730 + (i % 14) * 11 + Math.random() * 7;
+        const y = 430 + Math.floor(i / 14) * 13 + Math.random() * 7;
+        return `<circle cx="${x}" cy="${y}" r="1.5"/>`;
+      }).join('\n      ')}
+    </g>
+    
+    <!-- South America -->
+    <g id="southAmerica">
+      ${Array.from({length: 100}, (_, i) => {
+        const x = 340 + (i % 10) * 11 + Math.random() * 7;
+        const y = 500 + Math.floor(i / 10) * 13 + Math.random() * 7;
+        return `<circle cx="${x}" cy="${y}" r="1.5"/>`;
+      }).join('\n      ')}
+    </g>
+    
+    <!-- Australia -->
+    <g id="australia">
+      ${Array.from({length: 60}, (_, i) => {
+        const x = 1240 + (i % 10) * 12 + Math.random() * 7;
+        const y = 600 + Math.floor(i / 10) * 12 + Math.random() * 7;
+        return `<circle cx="${x}" cy="${y}" r="1.5"/>`;
+      }).join('\n      ')}
+    </g>
+  </g>
+  
+  <!-- Connection Lines (curved paths) -->
+  <g id="connections" stroke="#F20732" stroke-width="2" fill="none" opacity="0.3">
+    <!-- NYC to London -->
+    <path d="M 380,340 Q 550,280 790,290"/>
+    
+    <!-- London to Frankfurt -->
+    <path d="M 790,290 Q 820,285 850,295"/>
+    
+    <!-- Frankfurt to Singapore -->
+    <path d="M 850,295 Q 1050,350 1210,520"/>
+    
+    <!-- Singapore to Tokyo -->
+    <path d="M 1210,520 Q 1270,450 1320,360"/>
+    
+    <!-- Tokyo to Sydney -->  
+    <path d="M 1320,360 Q 1300,500 1285,650"/>
+    
+    <!-- NYC to Singapore (long route) -->
+    <path d="M 380,340 Q 800,500 1210,520"/>
+  </g>
+  
+  <!-- Network Nodes -->
+  <g id="nodes">
+    <!-- NYC -->
+    <circle cx="380" cy="340" r="40" fill="url(#nodeGlow)"/>
+    <circle cx="380" cy="340" r="12" fill="none" stroke="#F20732" stroke-width="2" opacity="0.6"/>
+    <circle cx="380" cy="340" r="7" fill="#F20732"/>
+    <circle cx="380" cy="340" r="3" fill="#FFFFFF"/>
+    
+    <!-- London -->
+    <circle cx="790" cy="290" r="40" fill="url(#nodeGlow)"/>
+    <circle cx="790" cy="290" r="12" fill="none" stroke="#F20732" stroke-width="2" opacity="0.6"/>
+    <circle cx="790" cy="290" r="7" fill="#F20732"/>
+    <circle cx="790" cy="290" r="3" fill="#FFFFFF"/>
+    
+    <!-- Frankfurt -->
+    <circle cx="850" cy="295" r="40" fill="url(#nodeGlow)"/>
+    <circle cx="850" cy="295" r="12" fill="none" stroke="#F20732" stroke-width="2" opacity="0.6"/>
+    <circle cx="850" cy="295" r="7" fill="#F20732"/>
+    <circle cx="850" cy="295" r="3" fill="#FFFFFF"/>
+    
+    <!-- Singapore -->
+    <circle cx="1210" cy="520" r="40" fill="url(#nodeGlow)"/>
+    <circle cx="1210" cy="520" r="12" fill="none" stroke="#F20732" stroke-width="2" opacity="0.6"/>
+    <circle cx="1210" cy="520" r="7" fill="#F20732"/>
+    <circle cx="1210" cy="520" r="3" fill="#FFFFFF"/>
+    
+    <!-- Tokyo -->
+    <circle cx="1320" cy="360" r="40" fill="url(#nodeGlow)"/>
+    <circle cx="1320" cy="360" r="12" fill="none" stroke="#F20732" stroke-width="2" opacity="0.6"/>
+    <circle cx="1320" cy="360" r="7" fill="#F20732"/>
+    <circle cx="1320" cy="360" r="3" fill="#FFFFFF"/>
+    
+    <!-- Sydney -->
+    <circle cx="1285" cy="650" r="40" fill="url(#nodeGlow)"/>
+    <circle cx="1285" cy="650" r="12" fill="none" stroke="#F20732" stroke-width="2" opacity="0.6"/>
+    <circle cx="1285" cy="650" r="7" fill="#F20732"/>
+    <circle cx="1285" cy="650" r="3" fill="#FFFFFF"/>
+  </g>
+</svg>

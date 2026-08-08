@@ -1,0 +1,3 @@
+run-checks.cmd
+tsc2.cmd
+checks-out.log

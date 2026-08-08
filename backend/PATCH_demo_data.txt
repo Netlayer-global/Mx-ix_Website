@@ -1,0 +1,24 @@
+// PATCH FOR grafana.controller.ts
+// Replace the getMockTrafficData function (around line 464-475) with this:
+
+// Helper function for mock traffic data
+function getMockTrafficData(source: string) {
+  // Generate realistic-looking demo data with variation
+  const baseTraffic = 847.5;
+  const variance = Math.sin(Date.now() / 60000) * 50; // Varies over minutes  
+  const currentTraffic = Math.max(600, baseTraffic + variance);
+  
+  return {
+    currentTraffic: Math.round(currentTraffic * 10) / 10,
+    unit: 'Gbps',
+    peakTraffic: 1240.3,
+    peakTime: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+    avgTraffic: 623.8,
+    timestamp: new Date().toISOString(),
+    source,
+    details: {
+      inbound: Math.round((currentTraffic * 0.52) * 10) / 10,  // ~52% inbound
+      outbound: Math.round((currentTraffic * 0.48) * 10) / 10   // ~48% outbound
+    }
+  };
+}
