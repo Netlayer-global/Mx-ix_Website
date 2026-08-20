@@ -55,5 +55,8 @@ export const DEFAULT_PAGE_VISIBILITY: PageVisibility = Object.fromEntries(
   PUBLIC_PAGES.map((page) => [page.id, true])
 );
 
+export const PAGE_VISIBILITY_STORAGE_KEY = 'mx-ix-page-visibility';
+export const PAGE_VISIBILITY_EVENT = 'mx-ix-page-visibility-updated';
+
 export const isPublicPageVisible = (visibility: PageVisibility, pageId: string): boolean =>
   visibility[pageId] !== false;

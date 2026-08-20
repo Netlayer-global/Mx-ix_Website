@@ -10,7 +10,13 @@ import FAQ from './components/FAQ';
 import CTABand from './components/CTABand';
 import { useMagnetic } from './shared/interactions';
 import { AdminProvider, useAdmin } from './contexts/AdminContext';
-import { DEFAULT_PAGE_VISIBILITY, PageVisibility, isPublicPageVisible } from './config/publicPages';
+import {
+  DEFAULT_PAGE_VISIBILITY,
+  PAGE_VISIBILITY_EVENT,
+  PAGE_VISIBILITY_STORAGE_KEY,
+  PageVisibility,
+  isPublicPageVisible,
+} from './config/publicPages';
 import { siteVisibilityApi } from './services/api';
 
 // Code-split pages & heavy components (loaded on demand)
@@ -902,17 +908,34 @@ function AppContent() {
   const [pageVisibility, setPageVisibility] = useState<PageVisibility | null>(null);
 
   useEffect(() => {
+    const applyVisibility = (nextVisibility: PageVisibility) => {
+      setPageVisibility({ ...DEFAULT_PAGE_VISIBILITY, ...nextVisibility });
+    };
+    const handleVisibilityUpdate = (event: Event) => {
+      const nextVisibility = (event as CustomEvent<PageVisibility>).detail;
+      if (nextVisibility && typeof nextVisibility === 'object') applyVisibility(nextVisibility);
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== PAGE_VISIBILITY_STORAGE_KEY || !event.newValue) return;
+      try {
+        const nextVisibility = JSON.parse(event.newValue) as PageVisibility;
+        if (nextVisibility && typeof nextVisibility === 'object') applyVisibility(nextVisibility);
+      } catch {
+        // Ignore malformed browser storage and keep the server-provided rules.
+      }
+    };
+
     let cancelled = false;
+    window.addEventListener(PAGE_VISIBILITY_EVENT, handleVisibilityUpdate);
+    window.addEventListener('storage', handleStorage);
     siteVisibilityApi.get().then((response) => {
       if (cancelled) return;
-      setPageVisibility(
-        response.success && response.data
-          ? { ...DEFAULT_PAGE_VISIBILITY, ...response.data.pageVisibility }
-          : { ...DEFAULT_PAGE_VISIBILITY }
-      );
+      applyVisibility(response.success && response.data ? response.data.pageVisibility : DEFAULT_PAGE_VISIBILITY);
     });
     return () => {
       cancelled = true;
+      window.removeEventListener(PAGE_VISIBILITY_EVENT, handleVisibilityUpdate);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 

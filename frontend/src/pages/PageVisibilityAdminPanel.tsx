@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Eye, EyeOff, Globe2, Loader2, RefreshCw } from 'lucide-react';
-import { DEFAULT_PAGE_VISIBILITY, PageVisibility, PUBLIC_PAGES, isPublicPageVisible } from '../config/publicPages';
+import {
+  DEFAULT_PAGE_VISIBILITY,
+  PAGE_VISIBILITY_EVENT,
+  PAGE_VISIBILITY_STORAGE_KEY,
+  PageVisibility,
+  PUBLIC_PAGES,
+  isPublicPageVisible,
+} from '../config/publicPages';
 import { settingsApi } from '../services/api';
 import { Note, PanelShell } from './admin/ui';
 
@@ -43,6 +50,8 @@ const PageVisibilityAdminPanel: React.FC<PageVisibilityAdminPanelProps> = ({ emb
     const response = await settingsApi.update({ siteVisibility: nextVisibility });
     if (response.success) {
       const isVisible = isPublicPageVisible(nextVisibility, pageId);
+      window.localStorage.setItem(PAGE_VISIBILITY_STORAGE_KEY, JSON.stringify(nextVisibility));
+      window.dispatchEvent(new CustomEvent(PAGE_VISIBILITY_EVENT, { detail: nextVisibility }));
       setNotice({
         tone: 'success',
         text: `${page?.label || 'Page'} is now ${isVisible ? 'visible' : 'hidden'} on the public website.`,
@@ -74,7 +83,7 @@ const PageVisibilityAdminPanel: React.FC<PageVisibilityAdminPanelProps> = ({ emb
       }
     >
       <Note tone="info">
-        Hidden pages are removed from the website navigation and footer. Visiting their URL directly shows a 404 page. Changes are saved immediately; reload an already-open public website tab to see the change.
+        Hidden pages are removed from the website navigation and footer. Visiting their URL directly shows a 404 page. Changes apply immediately to the public site in this browser.
       </Note>
 
       {notice && <Note tone={notice.tone}>{notice.text}</Note>}
@@ -112,12 +121,15 @@ const PageVisibilityAdminPanel: React.FC<PageVisibilityAdminPanelProps> = ({ emb
                         type="button"
                         onClick={() => togglePage(page.id)}
                         disabled={savingPage !== null}
-                        aria-pressed={visible}
-                        aria-label={`${visible ? 'Hide' : 'Show'} ${page.label}`}
-                        className={`inline-flex min-w-[92px] items-center justify-center gap-2 rounded px-3 py-2 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${visible ? 'bg-[#F20732] text-white hover:bg-[#C00628]' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                        role="switch"
+                        aria-checked={visible}
+                        aria-label={`${page.label} visibility: ${visible ? 'visible' : 'hidden'}`}
+                        className="inline-flex min-w-[104px] cursor-pointer items-center justify-end gap-2 rounded px-2 py-1.5 text-xs font-bold text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#F20732] focus:ring-offset-2 focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        {visible ? 'Hide page' : 'Show page'}
+                        <span className={`relative h-6 w-11 rounded-full transition-colors ${visible ? 'bg-green-500' : 'bg-gray-600'}`} aria-hidden="true">
+                          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${visible ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </span>
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <span>{visible ? 'Visible' : 'Hidden'}</span>}
                       </button>
                     </article>
                   );
