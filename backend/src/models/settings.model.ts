@@ -8,6 +8,8 @@ import config from '../config/environment';
  * sent to the client.
  */
 export interface ISettingsDocument extends Document {
+  /** Public website pages that are available to visitors. */
+  siteVisibility: Record<string, boolean>;
   grafana: {
     enabled: boolean;
     url: string;
@@ -73,6 +75,11 @@ export interface ISettingsDocument extends Document {
 
 const settingsSchema = new Schema<ISettingsDocument>(
   {
+    siteVisibility: {
+      type: Map,
+      of: Boolean,
+      default: {},
+    },
     grafana: {
       enabled: { type: Boolean, default: false },
       url: { type: String, default: '' },
@@ -139,6 +146,39 @@ const settingsSchema = new Schema<ISettingsDocument>(
 );
 
 export const Settings = mongoose.model<ISettingsDocument>('Settings', settingsSchema);
+
+/** Pages that are safe to control from the CMS. Admin and portal routes stay available. */
+export const PUBLIC_PAGE_IDS = [
+  'home',
+  'about',
+  'services',
+  'locations',
+  'networks',
+  'members',
+  'stats',
+  'pricing',
+  'contact',
+  'technical',
+  'lg',
+  'status',
+  'google-vpp',
+  'content-fabric',
+  'onboarding',
+  'privacy',
+  'terms',
+] as const;
+
+/**
+ * Old Settings documents do not have this field. Always return a complete,
+ * predictable visibility map and ignore unrecognised page ids from requests.
+ */
+export const normaliseSiteVisibility = (value?: unknown): Record<string, boolean> => {
+  const source = value instanceof Map ? Object.fromEntries(value) : (value as Record<string, unknown> | undefined);
+  return PUBLIC_PAGE_IDS.reduce<Record<string, boolean>>((visibility, pageId) => {
+    visibility[pageId] = source?.[pageId] !== false;
+    return visibility;
+  }, {});
+};
 
 /**
  * Returns the settings doc *including* secret fields, creating the singleton

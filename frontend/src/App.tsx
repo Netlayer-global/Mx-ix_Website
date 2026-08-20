@@ -10,6 +10,8 @@ import FAQ from './components/FAQ';
 import CTABand from './components/CTABand';
 import { useMagnetic } from './shared/interactions';
 import { AdminProvider, useAdmin } from './contexts/AdminContext';
+import { DEFAULT_PAGE_VISIBILITY, PageVisibility, isPublicPageVisible } from './config/publicPages';
+import { siteVisibilityApi } from './services/api';
 
 // Code-split pages & heavy components (loaded on demand)
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
@@ -320,7 +322,7 @@ const CustomCursor = () => {
   );
 };
 
-const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p: string) => void }) => {
+const Navigation = ({ currentPage, setPage, pageVisibility }: { currentPage: string, setPage: (p: string) => void, pageVisibility: PageVisibility }) => {
   const [scrolled, setScrolled] = useState(false);
   const [isDarkNav, setIsDarkNav] = useState(false);
   const [isLogoRotating, setIsLogoRotating] = useState(false);
@@ -400,6 +402,8 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
     { id: 'lg', label: 'Looking Glass', type: 'internal' },
     { id: 'status', label: 'Status Page', type: 'internal' },
   ];
+  const visibleNavItems = navItems.filter((item) => isPublicPageVisible(pageVisibility, item.id));
+  const visibleResourceItems = resourceItems.filter((item) => item.type !== 'internal' || isPublicPageVisible(pageVisibility, item.id));
 
   // Adjust colors based on dark mode and scroll state
   const isDark = isDarkNav;
@@ -445,7 +449,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
         {/* Desktop Navigation */}
         <div className="hidden lg:flex flex-1 items-center justify-center px-4">
           <div className={`flex items-center gap-8 xl:gap-12 px-8 xl:px-12 py-3 rounded-full border shadow-sm transition-all duration-300 hover:shadow-md ${getNavItemBg()}`}>
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavLink
                 key={item.id}
                 to={item.id}
@@ -474,7 +478,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
 
               <div className="absolute top-full left-1/2 -translate-x-1/2 pt-6 opacity-0 translate-y-2 pointer-events-none group-hover/dropdown:opacity-100 group-hover/dropdown:translate-y-0 group-hover/dropdown:pointer-events-auto transition-all duration-300">
                 <div className="w-48 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden py-1">
-                  {resourceItems.map((item) => (
+                  {visibleResourceItems.map((item) => (
                     item.type === 'internal' ? (
                       <NavLink
                         key={item.id}
@@ -552,7 +556,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
             <div className="flex flex-col h-full pt-24 pb-8 px-6">
               {/* Navigation Items */}
               <nav className="flex-1 space-y-2">
-                {navItems.map((item) => (
+                {visibleNavItems.map((item) => (
                   <NavLink
                     key={item.id}
                     to={item.id}
@@ -569,7 +573,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
                 {/* Mobile Resources */}
                 <div className="pt-2 pb-2 border-t border-gray-100">
                   <p className="px-4 text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-2">Resources</p>
-                  {resourceItems.map((item) => (
+                  {visibleResourceItems.map((item) => (
                     item.type === 'internal' ? (
                       <NavLink
                         key={item.id}
@@ -621,7 +625,7 @@ const Navigation = ({ currentPage, setPage }: { currentPage: string, setPage: (p
   );
 };
 
-const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
+const Footer = ({ setPage, pageVisibility }: { setPage: (p: string) => void, pageVisibility: PageVisibility }) => {
   const companyLinks = [
     { label: 'About Us', page: 'about' },
     { label: 'Services', page: 'services' },
@@ -629,13 +633,21 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
     { label: 'Contact', page: 'contact' },
   ];
 
-  const resourceLinks: { label: string; page?: string; url?: string }[] = [
+  const resourceLinks: { label: string; page?: string; url?: string; visibilityPage?: string }[] = [
     { label: 'Technical Requirements', page: 'technical' },
     { label: 'Network Stats', page: 'stats' },
-    { label: 'Status Page', url: 'https://status.mx-ix.com' },
+    { label: 'Status Page', url: 'https://status.mx-ix.com', visibilityPage: 'status' },
     { label: 'Looking Glass', page: 'lg' },
     { label: 'Peering', url: 'https://www.peeringdb.com/org/43398' },
   ];
+  const visibleCompanyLinks = companyLinks.filter((link) => isPublicPageVisible(pageVisibility, link.page));
+  const visibleResourceLinks = resourceLinks.filter((link) => !link.visibilityPage || isPublicPageVisible(pageVisibility, link.visibilityPage));
+  const utilityLinks = [
+    { label: 'Pricing', page: 'pricing' },
+    { label: 'Privacy', page: 'privacy' },
+    { label: 'Terms', page: 'terms' },
+    { label: 'Contact', page: 'contact' },
+  ].filter((link) => isPublicPageVisible(pageVisibility, link.page));
 
   return (
     <footer className="relative overflow-hidden bg-[#0A0A0B] text-white z-10">
@@ -672,7 +684,7 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
           <div className="lg:col-span-2">
             <h4 className="font-mono font-bold mb-4 uppercase tracking-label text-label-sm text-gray-500">Company</h4>
             <ul className="space-y-2.5 font-mono text-xs text-gray-300">
-              {companyLinks.map((l) => (
+              {visibleCompanyLinks.map((l) => (
                 <li key={l.page}>
                   <NavLink to={l.page} onClick={() => setPage(l.page)} className="hover:text-[#F20732] transition-colors hover-trigger flex items-center group">
                     <span className="w-0 group-hover:w-3.5 overflow-hidden transition-all duration-300 text-[#F20732]">→</span>
@@ -687,7 +699,7 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
           <div className="lg:col-span-2">
             <h4 className="font-mono font-bold mb-4 uppercase tracking-label text-label-sm text-gray-500">Resources</h4>
             <ul className="space-y-2.5 font-mono text-xs text-gray-300">
-              {resourceLinks.map((l) => (
+              {visibleResourceLinks.map((l) => (
                 <li key={l.label}>
                   {l.page ? (
                     <NavLink to={l.page!} onClick={() => setPage(l.page!)} className="hover:text-[#F20732] transition-colors hover-trigger flex items-center group">
@@ -730,10 +742,11 @@ const Footer = ({ setPage }: { setPage: (p: string) => void }) => {
             © 2026 MX-IX Digital Infrastructure Pvt. Ltd. — All Rights Reserved
           </span>
           <div className="flex items-center gap-5 font-mono text-label-sm uppercase tracking-label text-gray-500">
-            <NavLink to="pricing" onClick={() => setPage('pricing')} className="hover:text-[#F20732] transition-colors hover-trigger">Pricing</NavLink>
-            <NavLink to="privacy" onClick={() => setPage('privacy')} className="hover:text-[#F20732] transition-colors hover-trigger">Privacy</NavLink>
-            <NavLink to="terms" onClick={() => setPage('terms')} className="hover:text-[#F20732] transition-colors hover-trigger">Terms</NavLink>
-            <NavLink to="contact" onClick={() => setPage('contact')} className="hover:text-[#F20732] transition-colors hover-trigger">Contact</NavLink>
+            {utilityLinks.map((link) => (
+              <NavLink key={link.page} to={link.page} onClick={() => setPage(link.page)} className="hover:text-[#F20732] transition-colors hover-trigger">
+                {link.label}
+              </NavLink>
+            ))}
           </div>
         </div>
       </div>
@@ -886,6 +899,25 @@ function AppContent() {
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [selectedLocationId, setSelectedLocationId] = useState<string>('');
   const [selectedSection, setSelectedSection] = useState<string>('overview');
+  const [pageVisibility, setPageVisibility] = useState<PageVisibility | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    siteVisibilityApi.get().then((response) => {
+      if (cancelled) return;
+      setPageVisibility(
+        response.success && response.data
+          ? { ...DEFAULT_PAGE_VISIBILITY, ...response.data.pageVisibility }
+          : { ...DEFAULT_PAGE_VISIBILITY }
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const effectivePageVisibility = pageVisibility ?? DEFAULT_PAGE_VISIBILITY;
+  const isCurrentPageHidden = pageVisibility !== null && !isPublicPageVisible(effectivePageVisibility, page);
 
   const navigateTo = (newPage: string) => {
     const path = PATH_BY_PAGE[newPage] || `/${newPage}`;
@@ -937,6 +969,11 @@ function AppContent() {
   }, []);
 
   const renderPage = () => {
+    // Keep public pages off-screen until their visibility rules have loaded.
+    if (pageVisibility === null && page !== 'admin' && page !== 'portal') {
+      return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin" /></div>;
+    }
+    if (isCurrentPageHidden && page !== 'admin' && page !== 'portal') return <NotFoundPage />;
     switch (page) {
       case 'home':
         return (
@@ -1331,7 +1368,7 @@ function AppContent() {
       <div className="fixed inset-0 z-0 opacity-20 pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-200 via-transparent to-transparent"></div>
 
       {/* Hide navigation on admin & portal pages - they have their own chrome */}
-      {page !== 'admin' && page !== 'portal' && <Navigation currentPage={page} setPage={handleSetPage} />}
+      {page !== 'admin' && page !== 'portal' && <Navigation currentPage={page} setPage={handleSetPage} pageVisibility={effectivePageVisibility} />}
 
       <main className="relative z-10 min-h-screen">
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin"></div></div>}>
@@ -1340,7 +1377,7 @@ function AppContent() {
       </main>
 
       {/* Hide footer on admin & portal pages */}
-      {page !== 'admin' && page !== 'portal' && <Footer setPage={handleSetPage} />}
+      {page !== 'admin' && page !== 'portal' && <Footer setPage={handleSetPage} pageVisibility={effectivePageVisibility} />}
     </div>
   );
 }

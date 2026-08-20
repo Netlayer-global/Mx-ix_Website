@@ -407,6 +407,7 @@ export const statsApi = {
 // Integration Settings (Grafana / Zabbix)
 // ============================================
 export interface IntegrationSettings {
+  siteVisibility: Record<string, boolean>;
   grafana: {
     enabled: boolean;
     url: string;
@@ -461,6 +462,7 @@ export interface IntegrationSettings {
 }
 
 export interface SettingsUpdate {
+  siteVisibility?: Record<string, boolean>;
   grafana?: {
     enabled?: boolean;
     url?: string;
@@ -533,6 +535,10 @@ export const settingsApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+};
+
+export const siteVisibilityApi = {
+  get: () => apiCall<{ pageVisibility: Record<string, boolean> }>('/settings/public', { cache: 'no-store' }),
 };
 
 // ============================================
@@ -719,6 +725,7 @@ export default {
   contacts: contactsApi,
   stats: statsApi,
   settings: settingsApi,
+  siteVisibility: siteVisibilityApi,
   lookingGlass: lookingGlassApi,
   status: statusApi,
   members: membersApi,

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   getSettings,
+  getPublicSiteSettings,
   updateSettings,
   testGrafana,
   testZabbix,
@@ -10,6 +11,9 @@ import {
 import { authMiddleware } from '../middleware';
 
 const router = Router();
+
+// Visitor-facing page availability. This must remain above the admin routes.
+router.get('/public', getPublicSiteSettings);
 
 // All settings routes are admin-protected
 router.get('/', authMiddleware, getSettings);

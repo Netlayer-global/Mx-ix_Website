@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { Settings, getSettingsWithSecrets, getEffectiveZohoProfile } from '../models/settings.model';
+import { Settings, getSettingsWithSecrets, getEffectiveZohoProfile, normaliseSiteVisibility } from '../models/settings.model';
 import ixpManager from '../services/ixpManager.service';
 import zohoBooks from '../services/zohoBooks.service';
 import { logAudit } from '../services/audit.service';
@@ -21,6 +21,7 @@ export const getSettings = async (_req: Request, res: Response): Promise<void> =
     res.json({
       success: true,
       data: {
+        siteVisibility: normaliseSiteVisibility(doc.siteVisibility),
         grafana: {
           enabled: doc.grafana.enabled,
           url: doc.grafana.url,
@@ -77,6 +78,22 @@ export const getSettings = async (_req: Request, res: Response): Promise<void> =
   } catch (error) {
     console.error('Get settings error:', error);
     res.status(500).json({ success: false, error: 'Failed to get settings' });
+  }
+};
+
+/**
+ * GET /api/settings/public
+ * Only exposes the public-page availability map. It intentionally contains no
+ * integration settings or secrets, and is used by the public website shell.
+ */
+export const getPublicSiteSettings = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const doc = await Settings.findOne().select('siteVisibility');
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, data: { pageVisibility: normaliseSiteVisibility(doc?.siteVisibility) } });
+  } catch (error) {
+    console.error('Get public site settings error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get public site settings' });
   }
 };
 
@@ -143,6 +160,10 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
       if (contactForm.ccEmails !== undefined) doc.contactForm.ccEmails = String(contactForm.ccEmails).trim();
     }
 
+    if (req.body.siteVisibility && typeof req.body.siteVisibility === 'object' && !Array.isArray(req.body.siteVisibility)) {
+      doc.siteVisibility = normaliseSiteVisibility(req.body.siteVisibility);
+    }
+
     const { zohoProfiles } = req.body;
     if (Array.isArray(zohoProfiles)) {
       const prevByKey = new Map((doc.zohoProfiles || []).map((p) => [p.key, p]));
@@ -164,7 +185,12 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
     }
 
     await doc.save();
-    await logAudit({ actor: req.user?.email, action: 'settings.update', resource: 'Settings' });
+    await logAudit({
+      actor: req.user?.email,
+      action: 'settings.update',
+      resource: 'Settings',
+      after: req.body.siteVisibility ? { siteVisibility: normaliseSiteVisibility(doc.siteVisibility) } : undefined,
+    });
 
     res.json({ success: true, message: 'Settings updated successfully' });
   } catch (error) {

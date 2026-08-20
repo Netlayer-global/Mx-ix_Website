@@ -29,6 +29,7 @@ import {
   Layers,
   Share2,
   Cable,
+  EyeOff,
 } from 'lucide-react';
 import { authApi, servicesApi, locationsApi } from '../services/api';
 
@@ -58,6 +59,7 @@ const BirdAdminPanel = lazy(() => import('./BirdAdminPanel'));
 const PeeringDbAdminPanel = lazy(() => import('./PeeringDbAdminPanel'));
 const PatchPanelsAdminPanel = lazy(() => import('./PatchPanelsAdminPanel'));
 const CoreBundlesAdminPanel = lazy(() => import('./CoreBundlesAdminPanel'));
+const PageVisibilityAdminPanel = lazy(() => import('./PageVisibilityAdminPanel'));
 
 type AdminSection =
   | 'dashboard'
@@ -66,6 +68,7 @@ type AdminSection =
   | 'stats'
   | 'contacts'
   | 'homepage'
+  | 'pagevisibility'
   | 'integrations'
   | 'status'
   | 'members'
@@ -95,6 +98,7 @@ const SECTION_META: Record<AdminSection, { title: string; icon: React.ElementTyp
   services: { title: 'Services', icon: Server, desc: 'Service categories and items' },
   locations: { title: 'Locations', icon: MapPin, desc: 'Data centers, ASNs and sites' },
   homepage: { title: 'Homepage', icon: Home, desc: 'Global map and hero content' },
+  pagevisibility: { title: 'Page Visibility', icon: EyeOff, desc: 'Show or hide public website pages' },
   stats: { title: 'Statistics', icon: BarChart3, desc: 'Network stats display' },
   contacts: { title: 'Contacts', icon: Phone, desc: 'Contact information' },
   members: { title: 'Members', icon: Users, desc: 'Public member directory' },
@@ -118,7 +122,7 @@ const NAV_GROUPS: { label: string; items: AdminSection[] }[] = [
   { label: '', items: ['dashboard'] },
   { label: 'Members', items: ['customers', 'orders', 'support', 'noc'] },
   { label: 'IX Operations', items: ['fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'routeservers', 'status'] },
-  { label: 'Website', items: ['services', 'locations', 'homepage', 'stats', 'contacts', 'members'] },
+  { label: 'Website', items: ['services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'] },
   { label: 'System', items: ['announcements', 'integrations', 'adminusers', 'audit', 'templates'] },
 ];
 
@@ -127,7 +131,7 @@ const ROLE_ACCESS: Record<string, AdminSection[]> = {
   noc: ['customers', 'orders', 'support', 'status', 'noc', 'announcements', 'locations', 'routeservers', 'fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'integrations', 'members'],
   support: ['customers', 'support'],
   billing: ['customers', 'orders'],
-  editor: ['services', 'locations', 'homepage', 'stats', 'contacts', 'members'],
+  editor: ['services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'],
 };
 
 const AdminDashboard: React.FC = () => {
@@ -307,6 +311,7 @@ const AdminDashboard: React.FC = () => {
       case 'stats': return <StatsAdminPanel embedded />;
       case 'contacts': return <ContactsAdminPanel embedded />;
       case 'homepage': return <HomepageAdminPanel embedded />;
+      case 'pagevisibility': return <PageVisibilityAdminPanel embedded />;
       case 'integrations': return <IntegrationsAdminPanel embedded />;
       case 'status': return <StatusAdminPanel embedded />;
       case 'members': return <MembersAdminPanel embedded />;
