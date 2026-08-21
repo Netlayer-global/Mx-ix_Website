@@ -2756,6 +2756,8 @@ export interface SitePromoPopup {
   secondaryLabel: string;
   secondaryUrl: string;
   imageUrl: string;
+  /** `contain` shows the whole artwork; `cover` fills a band and may crop. */
+  imageFit: 'contain' | 'cover';
   hasUpload: boolean;
 }
 

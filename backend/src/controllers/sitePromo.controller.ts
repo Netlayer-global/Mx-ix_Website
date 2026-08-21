@@ -4,7 +4,9 @@ import { logAudit } from '../services/audit.service';
 
 /** Image types accepted for the popup upload. SVG is excluded on purpose. */
 const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
-const MAX_IMAGE_BYTES = 1_500_000; // 1.5 MB decoded
+// Designed announcement artwork is often a few MB. Kept well inside both the
+// 16 MB document ceiling and the 10 MB JSON body limit (base64 adds ~33%).
+const MAX_IMAGE_BYTES = 5_000_000; // 5 MB decoded
 
 /** Fields that, when changed, should re-show the announcement to visitors. */
 const contentFingerprint = (doc: any): string =>
@@ -23,6 +25,7 @@ const contentFingerprint = (doc: any): string =>
     doc.popup?.secondaryLabel,
     doc.popup?.secondaryUrl,
     doc.popup?.imageUrl,
+    doc.popup?.imageFit,
     doc.popup?.image?.updatedAt,
   ]);
 
@@ -49,6 +52,7 @@ const toPublic = (doc: any) => {
       secondaryUrl: doc.popup?.secondaryUrl || '',
       // An upload takes precedence over an external URL.
       imageUrl: hasUpload ? `/api/site-promo/image?v=${doc.revision}` : doc.popup?.imageUrl || '',
+      imageFit: doc.popup?.imageFit === 'cover' ? 'cover' : 'contain',
       hasUpload,
     },
     revision: doc.revision || 1,
@@ -81,6 +85,7 @@ export const getPublicPromo = async (_req: Request, res: Response): Promise<void
           secondaryLabel: '',
           secondaryUrl: '',
           imageUrl: '',
+          imageFit: 'contain',
           hasUpload: false,
         },
         revision: 1,
@@ -157,6 +162,7 @@ export const updatePromo = async (req: Request, res: Response): Promise<void> =>
       if (popup.secondaryLabel !== undefined) doc.popup.secondaryLabel = String(popup.secondaryLabel).slice(0, 60);
       if (popup.secondaryUrl !== undefined) doc.popup.secondaryUrl = String(popup.secondaryUrl).slice(0, 500);
       if (popup.imageUrl !== undefined) doc.popup.imageUrl = String(popup.imageUrl).slice(0, 500);
+      if (popup.imageFit !== undefined) doc.popup.imageFit = popup.imageFit === 'cover' ? 'cover' : 'contain';
     }
 
     if (removeImage) {
@@ -189,7 +195,9 @@ export const updatePromo = async (req: Request, res: Response): Promise<void> =>
       if (buffer.length > MAX_IMAGE_BYTES) {
         res.status(400).json({
           success: false,
-          error: `Image is too large (${(buffer.length / 1_000_000).toFixed(2)} MB). Maximum is 1.5 MB.`,
+          error: `Image is too large (${(buffer.length / 1_000_000).toFixed(2)} MB). Maximum is ${
+            MAX_IMAGE_BYTES / 1_000_000
+          } MB.`,
         });
         return;
       }

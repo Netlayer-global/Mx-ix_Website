@@ -34,6 +34,12 @@ export interface ISitePromoDocument extends Document {
     secondaryLabel: string;
     secondaryUrl: string;
     imageUrl: string;
+    /**
+     * How the image sits in the popup:
+     *  - `contain` shows the whole artwork uncropped (right for a designed banner)
+     *  - `cover` fills a band and may crop (right for a photograph)
+     */
+    imageFit: 'contain' | 'cover';
     image?: {
       data?: Buffer;
       contentType?: string;
@@ -67,6 +73,8 @@ const sitePromoSchema = new Schema<ISitePromoDocument>(
       secondaryUrl: { type: String, default: '', trim: true, maxlength: 500 },
       // An externally hosted image; used when no upload is stored.
       imageUrl: { type: String, default: '', trim: true, maxlength: 500 },
+      // Designed artwork should never be cropped, so `contain` is the default.
+      imageFit: { type: String, enum: ['contain', 'cover'], default: 'contain' },
       // An uploaded image, stored in the database so it survives redeploys.
       // `select: false` keeps the binary out of ordinary reads.
       image: {

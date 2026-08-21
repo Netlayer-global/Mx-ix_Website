@@ -20,7 +20,7 @@ interface Props {
   onBack?: () => void;
 }
 
-const MAX_IMAGE_BYTES = 1_500_000;
+const MAX_IMAGE_BYTES = 5_000_000;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 const EMPTY: SitePromo = {
@@ -35,6 +35,7 @@ const EMPTY: SitePromo = {
     secondaryLabel: '',
     secondaryUrl: '',
     imageUrl: '',
+    imageFit: 'contain',
     hasUpload: false,
   },
   revision: 1,
@@ -95,7 +96,9 @@ const SitePromoAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
       return;
     }
     if (file.size > MAX_IMAGE_BYTES) {
-      setError(`Image is ${(file.size / 1_000_000).toFixed(2)} MB. Maximum is 1.5 MB.`);
+      setError(
+        `Image is ${(file.size / 1_000_000).toFixed(2)} MB. Maximum is ${MAX_IMAGE_BYTES / 1_000_000} MB.`
+      );
       return;
     }
     const reader = new FileReader();
@@ -122,8 +125,8 @@ const SitePromoAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
         ctaUrl: promo.popup.ctaUrl,
         secondaryLabel: promo.popup.secondaryLabel,
         secondaryUrl: promo.popup.secondaryUrl,
-        // Keep the external URL only while no upload is in play.
-        imageUrl: promo.popup.hasUpload || pendingImage ? promo.popup.imageUrl : promo.popup.imageUrl,
+        imageUrl: promo.popup.imageUrl,
+        imageFit: promo.popup.imageFit,
       },
       ...(pendingImage ? { imageBase64: pendingImage } : {}),
       ...(removeImage ? { removeImage: true } : {}),
@@ -441,7 +444,25 @@ const SitePromoAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
                   {pendingImage && <span className="text-xs text-amber-400">New image ready — press Save</span>}
                   {removeImage && <span className="text-xs text-amber-400">Image will be removed on Save</span>}
                 </div>
-                <p className="text-[11px] text-gray-500 mt-2">PNG, JPEG, WebP or GIF · up to 1.5 MB</p>
+                <p className="text-[11px] text-gray-500 mt-2">PNG, JPEG, WebP or GIF · up to 5 MB</p>
+
+                <div className="mt-3">
+                  <label className={label} htmlFor="promo-image-fit">How to show it</label>
+                  <select
+                    id="promo-image-fit"
+                    value={promo.popup.imageFit}
+                    onChange={(e) => setPopup({ imageFit: e.target.value as 'contain' | 'cover' })}
+                    className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm"
+                  >
+                    <option value="contain">Whole image, never cropped (designed banner)</option>
+                    <option value="cover">Fill a band, may crop edges (photo)</option>
+                  </select>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    {promo.popup.imageFit === 'contain'
+                      ? 'Your full artwork is shown — nothing is cut off.'
+                      : 'The image fills a fixed band; top and bottom may be trimmed.'}
+                  </p>
+                </div>
 
                 <div className="mt-3">
                   <label className={label} htmlFor="promo-image-url">…or use an image URL</label>
@@ -465,7 +486,15 @@ const SitePromoAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
               <p className={label}>Preview</p>
               <div className="rounded-[16px] bg-white text-[#0A0A0B] overflow-hidden shadow-xl">
                 {previewImage && (
-                  <img src={previewImage} alt="" className="w-full max-h-40 object-cover" />
+                  <img
+                    src={previewImage}
+                    alt=""
+                    className={
+                      promo.popup.imageFit === 'cover'
+                        ? 'w-full max-h-48 object-cover'
+                        : 'mx-auto block h-auto w-auto max-w-full max-h-[420px] object-contain'
+                    }
+                  />
                 )}
                 <div className="p-6">
                   {promo.popup.eyebrow && (

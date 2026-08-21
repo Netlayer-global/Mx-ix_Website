@@ -93,6 +93,8 @@ const PromoModal: React.FC = () => {
   if (!open || !popup) return null;
 
   const isExternal = (url: string) => /^https?:\/\//i.test(url);
+  // When the artwork already carries the message, the panel below is just CTAs.
+  const hasCopy = !!(popup.eyebrow || popup.title || popup.body);
 
   return (
     <div
@@ -106,10 +108,13 @@ const PromoModal: React.FC = () => {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="promo-modal-title"
+        // An image-only announcement has no heading to point at.
+        {...(popup.title ? { 'aria-labelledby': 'promo-modal-title' } : { 'aria-label': 'Announcement' })}
         aria-describedby={popup.body ? 'promo-modal-body' : undefined}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg overflow-hidden rounded-[20px] bg-white shadow-[0_40px_100px_-30px_rgba(10,10,11,0.55)]"
+        className={`relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_40px_100px_-30px_rgba(10,10,11,0.55)] ${
+          popup.imageUrl ? 'max-w-2xl' : 'max-w-lg'
+        }`}
       >
         <button
           ref={closeRef}
@@ -120,15 +125,24 @@ const PromoModal: React.FC = () => {
           <X className="h-4 w-4" strokeWidth={2.5} />
         </button>
 
-        {popup.imageUrl && (
-          <img
-            src={popup.imageUrl}
-            alt={popup.title ? `${popup.title} announcement` : 'Announcement'}
-            className="max-h-56 w-full object-cover"
-          />
-        )}
+        {/* Scrolls as one piece so tall artwork plus copy always stays reachable. */}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {popup.imageUrl && (
+            <img
+              src={popup.imageUrl}
+              alt={popup.title ? `${popup.title} announcement` : 'Announcement'}
+              className={
+                popup.imageFit === 'cover'
+                  ? 'max-h-64 w-full object-cover'
+                  : // Designed artwork: whole image, and the box hugs it so a
+                    // portrait graphic doesn't sit inside empty side bands.
+                    'mx-auto block h-auto w-auto max-w-full object-contain'
+              }
+              style={popup.imageFit === 'cover' ? undefined : { maxHeight: '58vh' }}
+            />
+          )}
 
-        <div className="p-7 sm:p-8">
+          <div className={hasCopy ? 'p-7 sm:p-8' : 'p-6 sm:p-7'}>
           {popup.eyebrow && <span className="eyebrow text-ink">{popup.eyebrow}</span>}
 
           {popup.title && (
@@ -173,6 +187,7 @@ const PromoModal: React.FC = () => {
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
