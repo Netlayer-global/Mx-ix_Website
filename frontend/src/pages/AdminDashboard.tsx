@@ -51,6 +51,7 @@ const AnnouncementsPanel = lazy(() => import('./AnnouncementsPanel'));
 const EmailTemplatesPanel = lazy(() => import('./EmailTemplatesPanel'));
 const NocDashboardPanel = lazy(() => import('./NocDashboardPanel'));
 const RouteServersAdminPanel = lazy(() => import('./RouteServersAdminPanel'));
+const SitePromoAdminPanel = lazy(() => import('./SitePromoAdminPanel'));
 // ── IXP fabric panels ──
 const FabricAdminPanel = lazy(() => import('./FabricAdminPanel'));
 const VlansAdminPanel = lazy(() => import('./VlansAdminPanel'));
@@ -87,7 +88,8 @@ type AdminSection =
   | 'bird'
   | 'peeringdb'
   | 'patchpanels'
-  | 'corebundles';
+  | 'corebundles'
+  | 'promo';
 
 const SECTION_META: Record<AdminSection, { title: string; icon: React.ElementType; desc: string }> = {
   dashboard: { title: 'Overview', icon: Home, desc: 'Control panel summary' },
@@ -116,13 +118,14 @@ const SECTION_META: Record<AdminSection, { title: string; icon: React.ElementTyp
   adminusers: { title: 'Admin Users', icon: ShieldCheck, desc: 'Role-based admin access' },
   audit: { title: 'Audit Log', icon: ScrollText, desc: 'Admin actions with diff' },
   templates: { title: 'Email Templates', icon: Mail, desc: 'Transactional email content' },
+  promo: { title: 'Site Announcement', icon: Megaphone, desc: 'Headline bar & entry popup on the website' },
 };
 
 const NAV_GROUPS: { label: string; items: AdminSection[] }[] = [
   { label: '', items: ['dashboard'] },
   { label: 'Members', items: ['customers', 'orders', 'support', 'noc'] },
   { label: 'IX Operations', items: ['fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'routeservers', 'status'] },
-  { label: 'Website', items: ['services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'] },
+  { label: 'Website', items: ['promo', 'services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'] },
   { label: 'System', items: ['announcements', 'integrations', 'adminusers', 'audit', 'templates'] },
 ];
 
@@ -131,7 +134,7 @@ const ROLE_ACCESS: Record<string, AdminSection[]> = {
   noc: ['customers', 'orders', 'support', 'status', 'noc', 'announcements', 'locations', 'routeservers', 'fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'integrations', 'members'],
   support: ['customers', 'support'],
   billing: ['customers', 'orders'],
-  editor: ['services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'],
+  editor: ['promo', 'services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'],
 };
 
 const AdminDashboard: React.FC = () => {
@@ -324,6 +327,7 @@ const AdminDashboard: React.FC = () => {
       case 'templates': return <EmailTemplatesPanel embedded />;
       case 'noc': return <NocDashboardPanel embedded />;
       case 'routeservers': return <RouteServersAdminPanel embedded />;
+      case 'promo': return <SitePromoAdminPanel embedded />;
       case 'fabric': return <FabricAdminPanel embedded />;
       case 'vlans': return <VlansAdminPanel embedded />;
       case 'peers': return <PeersAdminPanel embedded />;

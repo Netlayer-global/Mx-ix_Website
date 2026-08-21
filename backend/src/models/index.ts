@@ -50,3 +50,4 @@ export { CustomerNote } from './customerNote.model';
 export { CustomerTag } from './customerTag.model';
 export { CustomerDocument } from './customerDocument.model';
 export { ApiToken } from './apiToken.model';
+export { SitePromo, getSitePromo } from './sitePromo.model';

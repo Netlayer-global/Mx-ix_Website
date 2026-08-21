@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import Reveal from './components/Reveal';
+import PromoBanner from './components/PromoBanner';
+import PromoModal from './components/PromoModal';
 import SectionCorners from './components/SectionCorners';
 import Preloader from './components/Preloader';
 import Ticker from './components/Ticker';
@@ -440,7 +442,10 @@ const Navigation = ({ currentPage, setPage, pageVisibility }: { currentPage: str
   };
 
   return (
-    <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${getNavBg()} ${scrolled ? 'py-3' : 'py-6 md:py-8'}`}>
+    <nav
+      style={{ top: 'var(--promo-h, 0px)' }}
+      className={`fixed w-full z-50 transition-all duration-300 ${getNavBg()} ${scrolled ? 'py-3' : 'py-6 md:py-8'}`}
+    >
       <div className="max-w-[1920px] mx-auto px-4 sm:px-6 md:px-12 flex items-center justify-between h-14">
         {/* Logo */}
         <div className="flex-shrink-0 flex items-center justify-start z-50">
@@ -1390,10 +1395,23 @@ function AppContent() {
 
       <div className="fixed inset-0 z-0 opacity-20 pointer-events-none bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gray-200 via-transparent to-transparent"></div>
 
+      {/* Site announcement: headline bar + entry popup (public pages only).
+          The bar publishes its height to --promo-h so the fixed nav and the
+          page content below shift down by exactly that amount. */}
+      {page !== 'admin' && page !== 'portal' && (
+        <>
+          <PromoBanner />
+          <PromoModal />
+        </>
+      )}
+
       {/* Hide navigation on admin & portal pages - they have their own chrome */}
       {page !== 'admin' && page !== 'portal' && <Navigation currentPage={page} setPage={handleSetPage} pageVisibility={effectivePageVisibility} />}
 
-      <main className="relative z-10 min-h-screen">
+      <main
+        className="relative z-10 min-h-screen"
+        style={page !== 'admin' && page !== 'portal' ? { paddingTop: 'var(--promo-h, 0px)' } : undefined}
+      >
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin"></div></div>}>
           {renderPage()}
         </Suspense>

@@ -2733,3 +2733,55 @@ export const adminIxpImportApi = {
     apiCall<IxpImportStats>('/admin/ixp-import/run', { method: 'POST', body: JSON.stringify(data || {}) }),
   retire: () => apiCall<void>('/admin/ixp-import/retire', { method: 'POST' }),
 };
+
+// ============================================
+// Site-wide announcement (headline bar + entry popup)
+// ============================================
+export interface SitePromoBanner {
+  enabled: boolean;
+  message: string;
+  linkLabel: string;
+  linkUrl: string;
+  tone: 'red' | 'ink';
+  dismissible: boolean;
+}
+
+export interface SitePromoPopup {
+  enabled: boolean;
+  eyebrow: string;
+  title: string;
+  body: string;
+  ctaLabel: string;
+  ctaUrl: string;
+  secondaryLabel: string;
+  secondaryUrl: string;
+  imageUrl: string;
+  hasUpload: boolean;
+}
+
+export interface SitePromo {
+  banner: SitePromoBanner;
+  popup: SitePromoPopup;
+  revision: number;
+  updatedAt?: string;
+}
+
+export interface SitePromoUpdate {
+  banner?: Partial<SitePromoBanner>;
+  popup?: Partial<Omit<SitePromoPopup, 'hasUpload'>>;
+  /** Data URL or bare base64 payload for the popup image. */
+  imageBase64?: string;
+  imageContentType?: string;
+  removeImage?: boolean;
+  /** Re-show the announcement to visitors who already dismissed it. */
+  bumpRevision?: boolean;
+}
+
+export const sitePromoApi = {
+  /** Public read used by the website. */
+  get: () => apiCall<SitePromo>('/site-promo'),
+  /** Admin read (uncached). */
+  getAdmin: () => apiCall<SitePromo>('/site-promo/admin'),
+  update: (data: SitePromoUpdate) =>
+    apiCall<SitePromo>('/site-promo', { method: 'PUT', body: JSON.stringify(data) }),
+};
