@@ -48,6 +48,16 @@ import {
 interface Props {
   embedded?: boolean;
   onBack?: () => void;
+  /** Pre-fill the provisioning wizard from an approved order. */
+  provisionContext?: {
+    orderId?: string;
+    orgId?: string;
+    orgName?: string;
+    location?: string;
+    speed?: string;
+    type?: string;
+  } | null;
+  onProvisionDone?: () => void;
 }
 
 type Tab = 'connections' | 'peers';
@@ -59,7 +69,7 @@ type Tab = 'connections' | 'peers';
  * builds the connection and peer, allocates addresses, pulls PeeringDB, expands
  * the as-set and pushes config to both route servers in one action.
  */
-const PeersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
+const PeersAdminPanel: React.FC<Props> = ({ embedded, onBack, provisionContext, onProvisionDone }) => {
   const [tab, setTab] = useState<Tab>('connections');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -73,6 +83,13 @@ const PeersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
   const [editingPeer, setEditingPeer] = useState<PeerItem | null>(null);
   const [macsFor, setMacsFor] = useState<PeerItem | null>(null);
   const [macSearch, setMacSearch] = useState(false);
+
+  // Auto-open the provisioning wizard when navigated from Orders with context.
+  useEffect(() => {
+    if (provisionContext?.orgId && !wizard) {
+      setWizard(true);
+    }
+  }, [provisionContext]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     const [cRes, pRes, oRes, custRes] = await Promise.all([

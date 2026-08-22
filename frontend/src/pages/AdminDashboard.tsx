@@ -150,6 +150,7 @@ const AdminDashboard: React.FC = () => {
   const [name, setName] = useState<string>('Admin');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [provisionContext, setProvisionContext] = useState<any>(null);
 
   const [stats, setStats] = useState({ services: 0, locations: 0, asns: 0, sites: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
@@ -319,7 +320,7 @@ const AdminDashboard: React.FC = () => {
       case 'status': return <StatusAdminPanel embedded />;
       case 'members': return <MembersAdminPanel embedded />;
       case 'customers': return <CustomersAdminPanel embedded />;
-      case 'orders': return <OrdersAdminPanel embedded />;
+      case 'orders': return <OrdersAdminPanel embedded onNavigateSection={(section, ctx) => { setProvisionContext(ctx); go(section as AdminSection); }} />;
       case 'support': return <SupportAdminPanel embedded />;
       case 'adminusers': return <AdminUsersPanel embedded />;
       case 'audit': return <AuditLogPanel embedded />;
@@ -330,7 +331,7 @@ const AdminDashboard: React.FC = () => {
       case 'promo': return <SitePromoAdminPanel embedded />;
       case 'fabric': return <FabricAdminPanel embedded />;
       case 'vlans': return <VlansAdminPanel embedded />;
-      case 'peers': return <PeersAdminPanel embedded />;
+      case 'peers': return <PeersAdminPanel embedded provisionContext={provisionContext} onProvisionDone={() => setProvisionContext(null)} />;
       case 'bird': return <BirdAdminPanel embedded />;
       case 'peeringdb': return <PeeringDbAdminPanel embedded />;
       case 'patchpanels': return <PatchPanelsAdminPanel embedded />;

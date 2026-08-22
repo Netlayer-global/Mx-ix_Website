@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ChevronLeft, Loader2, ShoppingCart, Clock, Save } from 'lucide-react';
+import { ChevronLeft, Loader2, ShoppingCart, Clock, Save, Wand2, ArrowRight } from 'lucide-react';
 import { adminOrdersApi, OrderItem, OrderStatus } from '../services/api';
 
 interface Props {
   embedded?: boolean;
   onBack?: () => void;
+  /** Navigate to another admin section (e.g. 'peers') for provisioning. */
+  onNavigateSection?: (section: string, context?: any) => void;
 }
 
 const STATUSES: OrderStatus[] = [
@@ -36,7 +38,7 @@ const badge = (s: OrderStatus) => {
 
 const typeLabel: Record<string, string> = { new_port: 'New Port', upgrade: 'Upgrade', addon: 'Add-on' };
 
-const OrdersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
+const OrdersAdminPanel: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) => {
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | OrderStatus>('all');
@@ -192,7 +194,29 @@ const OrdersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
                       rows={2}
                       className={field}
                     />
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
+                      {/* Provision button — opens the Peers provisioning wizard with order context */}
+                      {(o.status === 'approved' || o.status === 'provisioning') && onNavigateSection && (
+                        <button
+                          onClick={() => {
+                            // Auto-set to provisioning if still approved
+                            if (o.status === 'approved') {
+                              adminOrdersApi.update(o._id, { status: 'provisioning', message: 'Provisioning started' });
+                            }
+                            onNavigateSection('peers', {
+                              orderId: o._id,
+                              orgId: o.organization,
+                              orgName: o.orgName,
+                              location: o.location,
+                              speed: o.speed,
+                              type: o.type,
+                            });
+                          }}
+                          className="flex items-center gap-2 px-5 py-2.5 bg-green-600 rounded font-bold text-sm hover:bg-green-500 transition-colors"
+                        >
+                          <Wand2 className="w-4 h-4" /> Provision <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={() => apply(o._id)}
                         disabled={saving}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   ChevronLeft,
   Loader2,
@@ -15,10 +15,15 @@ import {
   RotateCcw,
   Eye,
   RefreshCw,
+  Phone,
+  FileText,
+  Upload,
 } from 'lucide-react';
 import {
   adminCustomersApi,
   adminIxpApi,
+  adminContactsApi,
+  adminDocumentsApi,
   CustomerOrg,
   CustomerUser,
   PortItem,
@@ -601,6 +606,12 @@ const CustomerDetail: React.FC<{ id: string; onBack: () => void }> = ({ id, onBa
             </button>
           </div>
         </section>
+
+        {/* Member contacts (NOC / Technical / Billing / Peering) */}
+        <ContactsSection orgId={id} fieldClass={field} />
+
+        {/* Documents (agreements, LOA, KYC) */}
+        <DocumentsSection orgId={id} fieldClass={field} />
       </main>
     </div>
   );
@@ -732,5 +743,183 @@ const ZohoContactPicker: React.FC<{
         </div>
       )}
     </div>
+  );
+};
+
+// ── Member Contacts (NOC, Technical, Billing, Peering, Escalation) ──
+
+const CONTACT_ROLES = ['noc', 'peering', 'billing', 'admin', 'sales', 'legal', 'other'] as const;
+
+const ContactsSection: React.FC<{ orgId: string; fieldClass: string }> = ({ orgId, fieldClass }) => {
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState<{ name: string; email: string; phone: string; role: 'noc' | 'peering' | 'billing' | 'admin' | 'sales' | 'legal' | 'other' }>({ name: '', email: '', phone: '', role: 'noc' });
+
+  const load = useCallback(async () => {
+    const res = await adminContactsApi.list(orgId);
+    if (res.success && res.data) setContacts(res.data);
+  }, [orgId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const add = async () => {
+    if (!form.name || !form.email || !form.role) return;
+    setBusy(true);
+    const res = await adminContactsApi.create(orgId, form);
+    setBusy(false);
+    if (res.success) {
+      setForm({ name: '', email: '', phone: '', role: 'noc' });
+      load();
+    }
+  };
+
+  const del = async (id: string) => {
+    if (!confirm('Remove this contact?')) return;
+    await adminContactsApi.remove(orgId, id);
+    load();
+  };
+
+  return (
+    <section className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+      <h2 className="font-bold mb-4 flex items-center gap-2">
+        <Phone className="w-4 h-4" /> Member Contacts
+      </h2>
+      <div className="space-y-2 mb-4">
+        {contacts.map((c) => (
+          <div key={c._id} className="bg-gray-900 border border-gray-700 rounded p-3 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm truncate">
+                {c.name}
+                <span className="ml-2 text-[10px] uppercase text-gray-500">{c.role}</span>
+                {c.isPrimary && <span className="ml-2 text-[9px] bg-green-500/15 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded">primary</span>}
+              </div>
+              <div className="text-xs text-gray-500">{c.email}{c.phone ? ` · ${c.phone}` : ''}</div>
+            </div>
+            <button onClick={() => del(c._id)} className="p-1.5 text-gray-500 hover:text-[#F20732] transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        {!contacts.length && <p className="text-gray-500 text-sm">No contacts yet. Add NOC, billing and peering contacts below.</p>}
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 pt-4 border-t border-gray-700">
+        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Name *" className={fieldClass} />
+        <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="Email *" className={fieldClass} />
+        <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone" className={fieldClass} />
+        <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as any })} className={fieldClass}>
+          {CONTACT_ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <button onClick={add} disabled={busy} className="flex items-center justify-center gap-2 px-3 py-2 bg-[#F20732] rounded font-bold text-sm hover:bg-[#C00628] transition-colors disabled:opacity-50">
+          <Plus className="w-4 h-4" /> Add
+        </button>
+      </div>
+    </section>
+  );
+};
+
+// ── Customer Documents (Agreement, LOA, KYC) ──
+
+const DOC_CATEGORIES = ['loa', 'invoice', 'contract', 'policy', 'diagram', 'other'] as const;
+
+const DocumentsSection: React.FC<{ orgId: string; fieldClass: string }> = ({ orgId, fieldClass }) => {
+  const [docs, setDocs] = useState<any[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ name: '', category: 'loa' as 'loa' | 'invoice' | 'contract' | 'policy' | 'diagram' | 'other', notes: '', memberVisible: false });
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ name: string; data: string; contentType: string } | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await adminDocumentsApi.list(orgId);
+    if (res.success && res.data) setDocs(res.data);
+  }, [orgId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const pickFile = (file: File) => {
+    if (file.size > 10_000_000) { alert('File too large (max 10 MB)'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPendingFile({ name: file.name, data: String(reader.result), contentType: file.type });
+      setForm((f) => ({ ...f, name: f.name || file.name }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const upload = async () => {
+    if (!form.name || !pendingFile) return;
+    setBusy(true);
+    const res = await adminDocumentsApi.create(orgId, {
+      filename: pendingFile.name,
+      storagePath: pendingFile.data,
+      mimeType: pendingFile.contentType,
+      size: Math.round(pendingFile.data.length * 0.75),
+      category: form.category,
+      description: form.notes,
+      visibility: form.memberVisible ? 'shared' : 'staff',
+    });
+    setBusy(false);
+    if (res.success) {
+      setForm({ name: '', category: 'loa', notes: '', memberVisible: false });
+      setPendingFile(null);
+      load();
+    }
+  };
+
+  const del = async (id: string) => {
+    if (!confirm('Delete this document?')) return;
+    await adminDocumentsApi.remove(orgId, id);
+    load();
+  };
+
+  return (
+    <section className="bg-gray-800 border border-gray-700 rounded-lg p-5">
+      <h2 className="font-bold mb-4 flex items-center gap-2">
+        <FileText className="w-4 h-4" /> Documents
+      </h2>
+      <div className="space-y-2 mb-4">
+        {docs.map((d) => (
+          <div key={d._id} className="bg-gray-900 border border-gray-700 rounded p-3 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm truncate">
+                {d.name}
+                <span className="ml-2 text-[10px] uppercase text-gray-500">{d.category}</span>
+                {d.memberVisible && <span className="ml-2 text-[9px] bg-blue-500/15 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded">member-visible</span>}
+              </div>
+              <div className="text-xs text-gray-500">
+                {d.fileName || d.name} · uploaded {new Date(d.createdAt).toLocaleDateString()}
+                {d.uploadedBy ? ` by ${d.uploadedBy}` : ''}
+              </div>
+            </div>
+            <button onClick={() => del(d._id)} className="p-1.5 text-gray-500 hover:text-[#F20732] transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+        {!docs.length && <p className="text-gray-500 text-sm">No documents uploaded. Add agreements, LOAs or KYC files below.</p>}
+      </div>
+      <div className="pt-4 border-t border-gray-700 space-y-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Document name *" className={fieldClass} />
+          <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as any })} className={fieldClass}>
+            {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes (optional)" className={fieldClass} />
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={form.memberVisible} onChange={(e) => setForm({ ...form, memberVisible: e.target.checked })} />
+            Member-visible
+          </label>
+        </div>
+        <div className="flex items-center gap-3">
+          <input ref={fileRef} type="file" className="hidden" onChange={(e) => { if (e.target.files?.[0]) pickFile(e.target.files[0]); e.target.value = ''; }} />
+          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-gray-700 rounded text-sm font-bold hover:bg-gray-600 transition-colors">
+            <Upload className="w-4 h-4" /> Choose file
+          </button>
+          {pendingFile && <span className="text-xs text-amber-400 truncate max-w-[200px]">{pendingFile.name}</span>}
+          <button onClick={upload} disabled={busy || !pendingFile} className="flex items-center gap-2 px-5 py-2 bg-[#F20732] rounded font-bold text-sm hover:bg-[#C00628] transition-colors disabled:opacity-50">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Upload
+          </button>
+        </div>
+      </div>
+    </section>
   );
 };
