@@ -1,190 +1,180 @@
 import { Request, Response } from 'express';
-import {
-  Infrastructure,
-  Vlan,
-  VlanInterface,
-  VirtualInterface,
-  PhysicalInterface,
-  IpAddress,
-  Organization,
-  Switch,
-  SwitchPort,
-} from '../models';
+import { Organization, Port } from '../models';
+import { Infrastructure } from '../models/infrastructure.model';
+import { Vlan } from '../models/vlan.model';
+import { VlanInterface } from '../models/vlanInterface.model';
+import { VirtualInterface } from '../models/virtualInterface.model';
+import { PhysicalInterface } from '../models/physicalInterface.model';
+import { Switch } from '../models/switch.model';
+import { SwitchPort } from '../models/switchPort.model';
+import { Facility } from '../models/facility.model';
 
 /**
- * IX-F Member Export — JSON schema 1.0
+ * GET /api/ix-f/member-export/1.0
  *
- * Publishes our member list in the standard IX-F format so PeeringDB and other
- * IXPs can consume it automatically. This replaces the IXP Manager dependency
- * for this purpose: we ARE the source of truth now.
+ * Generates a Euro-IX JSON Member List (IX-F schema 1.0) from the in-house
+ * database. This is the format PeeringDB, IXP Manager, and peering automation
+ * tools expect.
  *
- * Spec: https://github.com/euro-ix/json-schemas
+ * Reference: https://github.com/euro-ix/json-schemas
  *
- * Public endpoint (no auth) — the whole point is that anyone can fetch it.
+ * The export is built dynamically from active organisations, their virtual
+ * interfaces (connections), physical interfaces (ports), VLAN interfaces
+ * (IP assignments), and infrastructure metadata.
  */
-
-export const ixfExport = async (req: Request, res: Response): Promise<void> => {
+export const ixfMemberExport = async (_req: Request, res: Response): Promise<void> => {
   try {
-    // Default to first enabled infrastructure, or allow specifying one
-    const infraId = req.query?.infrastructure;
-    const infraFilter: any = { enabled: true };
-    if (infraId) infraFilter._id = infraId;
+    // Gather infrastructure, facilities, switches and VLANs for the ixp_list.
+    const infras = await Infrastructure.find().lean();
+    const allFacilities = await Facility.find().lean();
+    const allSwitches = await Switch.find().lean();
+    const allVlans = await Vlan.find().lean();
 
-    const infra = await Infrastructure.findOne(infraFilter).sort({ isPrimary: -1, order: 1 }).lean();
-    if (!infra) {
-      res.status(404).json({ error: 'No infrastructure configured.' });
-      return;
-    }
+    // Active member organisations with at least one connection.
+    const orgs = await Organization.find({ status: 'active' }).lean();
+    const orgIds = orgs.map((o) => String(o._id));
 
-    // Get all non-private VLANs on this infrastructure that are IX-F export enabled
-    const vlans = await Vlan.find({
-      infrastructure: infra._id,
-      enabled: true,
-      isPrivate: false,
-      ixfExport: true,
-    }).lean();
+    // Virtual interfaces (connections) for active orgs.
+    const vis = await VirtualInterface.find({ organization: { $in: orgIds } }).lean();
+    const viIds = vis.map((v) => String(v._id));
 
-    if (!vlans.length) {
-      res.status(404).json({ error: 'No VLANs configured for IX-F export.' });
-      return;
-    }
+    // Physical interfaces bound to those VIs.
+    const pis = await PhysicalInterface.find({ virtualInterface: { $in: viIds } }).lean();
 
-    const vlanIds = vlans.map((v: any) => v._id);
+    // VLAN interfaces (IP assignments) on those VIs.
+    const vlis = await VlanInterface.find({ virtualInterface: { $in: viIds } }).lean();
 
-    // All enabled VLAN interfaces on these VLANs (= all peers)
-    const vlis = await VlanInterface.find({ vlan: { $in: vlanIds }, enabled: true })
-      .select('virtualInterface vlan ipv4Address ipv6Address ipv4Enabled ipv6Enabled rsClient')
-      .lean();
+    // Build switch port → switch lookup for if_list.switch_id
+    const spIds = pis.map((p) => p.switchPort).filter(Boolean);
+    const sps = spIds.length ? await SwitchPort.find({ _id: { $in: spIds } }).lean() : [];
+    const spMap = new Map(sps.map((sp) => [String(sp._id), sp]));
 
-    // Resolve virtual interfaces -> organizations
-    const viIds = [...new Set(vlis.map((v: any) => String(v.virtualInterface)))];
-    const vis = await VirtualInterface.find({ _id: { $in: viIds } }).select('organization').lean();
-    const viById = new Map(vis.map((v: any) => [String(v._id), v]));
+    // VLAN map for ixlan prefix info
+    const vlanMap = new Map(allVlans.map((v) => [String(v._id), v]));
 
-    // Resolve organizations
-    const orgIds = [...new Set(vis.map((v: any) => String(v.organization)))];
-    const orgs = await Organization.find({ _id: { $in: orgIds }, status: 'active' })
-      .select('name asn website type peeringPolicy')
-      .lean();
-    const orgById = new Map(orgs.map((o: any) => [String(o._id), o]));
+    // Build ixp_list with switches and VLANs per infrastructure.
+    const ixpList = infras.map((infra) => {
+      const infraId = String(infra._id);
+      const switches = allSwitches
+        .filter((s) => String(s.infrastructure) === infraId)
+        .map((s) => ({
+          id: String(s._id),
+          name: s.name,
+          colo: '',
+          software: s.os || '',
+        }));
 
-    // Resolve IP addresses
-    const addrIds = vlis.flatMap((v: any) => [v.ipv4Address, v.ipv6Address]).filter(Boolean);
-    const addrs = await IpAddress.find({ _id: { $in: addrIds } }).select('address family').lean();
-    const addrById = new Map(addrs.map((a: any) => [String(a._id), a]));
+      const vlans = allVlans
+        .filter((v) => String(v.infrastructure) === infraId)
+        .map((v) => ({
+          id: String(v._id),
+          name: v.name,
+          ipv4: v.ipv4Prefix ? { prefix: v.ipv4Prefix.split('/')[0], mask_length: Number(v.ipv4Prefix.split('/')[1]) || 0 } : undefined,
+          ipv6: v.ipv6Prefix ? { prefix: v.ipv6Prefix.split('/')[0], mask_length: Number(v.ipv6Prefix.split('/')[1]) || 0 } : undefined,
+        }));
 
-    // Resolve physical interfaces for speed
-    const pisByVi = new Map<string, any[]>();
-    const pis = await PhysicalInterface.find({ virtualInterface: { $in: viIds } })
-      .select('virtualInterface speed')
-      .lean();
-    for (const pi of pis as any[]) {
-      const key = String(pi.virtualInterface);
-      pisByVi.set(key, [...(pisByVi.get(key) || []), pi]);
-    }
-
-    // Build the IX-F member_list
-    const memberMap = new Map<string, any>();
-
-    for (const vli of vlis as any[]) {
-      const vi = viById.get(String(vli.virtualInterface));
-      if (!vi) continue;
-      const org = orgById.get(String(vi.organization));
-      if (!org || !org.asn) continue;
-
-      const memberKey = String(org._id);
-      if (!memberMap.has(memberKey)) {
-        memberMap.set(memberKey, {
-          asnum: org.asn,
-          name: org.name,
-          url: org.website || '',
-          peering_policy: (org.peeringPolicy || 'open').toLowerCase(),
-          member_since: '', // Could derive from org.createdAt
-          connection_list: [],
-        });
-      }
-
-      const member = memberMap.get(memberKey)!;
-      const v4Addr = vli.ipv4Address ? addrById.get(String(vli.ipv4Address)) : null;
-      const v6Addr = vli.ipv6Address ? addrById.get(String(vli.ipv6Address)) : null;
-
-      // Speed from physical interfaces
-      const viPis = pisByVi.get(String(vli.virtualInterface)) || [];
-      const totalSpeed = viPis.reduce((sum: number, p: any) => sum + (p.speed || 0), 0);
-
-      const vlan = vlans.find((v: any) => String(v._id) === String(vli.vlan));
-
-      const ifList: any[] = [];
-      if (v4Addr || v6Addr) {
-        const iface: any = {
-          switch_id: 0, // Could map to switch
-          if_speed: totalSpeed || 10000,
-        };
-        if (v4Addr) iface.if_type = 'LAN';
-        ifList.push(iface);
-      }
-
-      const connection: any = {
-        ixp_id: (infra as any).ixfId || 1,
-        state: 'active',
-        connected_since: '',
-        if_list: ifList,
-        vlan_list: [],
+      return {
+        ixp_id: infraId,
+        shortname: infra.shortname || infra.name,
+        name: infra.name,
+        country: 'IN',
+        url: infra.nocWebsite || '',
+        peeringdb_id: infra.peeringdbIxId || undefined,
+        ixf_id: infra.ixfId || undefined,
+        support_email: infra.nocEmail || '',
+        support_phone: infra.nocPhone || '',
+        switch: switches,
+        vlan: vlans,
       };
+    });
 
-      // VLAN details with addresses
-      const vlanEntry: any = { vlan_id: vlan ? vlan.number : 0 };
-      if (v4Addr && vli.ipv4Enabled) {
-        vlanEntry.ipv4 = {
-          address: v4Addr.address,
-          routeserver: vli.rsClient || false,
-          max_prefix: 0,
-          as_macro: '',
-        };
-      }
-      if (v6Addr && vli.ipv6Enabled) {
-        vlanEntry.ipv6 = {
-          address: v6Addr.address,
-          routeserver: vli.rsClient || false,
-          max_prefix: 0,
-          as_macro: '',
-        };
-      }
-      connection.vlan_list.push(vlanEntry);
-      member.connection_list.push(connection);
-    }
+    // Build member_list.
+    const memberList = orgs.map((org) => {
+      const orgId = String(org._id);
+      const orgVis = vis.filter((v) => String(v.organization) === orgId);
 
-    // Build IXP list
-    const ixpList = [{
-      ixp_id: (infra as any).ixfId || 1,
-      shortname: (infra as any).shortname || 'mx-ix',
-      name: (infra as any).name,
-      country: '',
-      url: '',
-      vlan: vlans.map((v: any) => ({
-        id: v.number,
-        name: v.name,
-        ipv4: v.ipv4Prefix ? { prefix: v.ipv4Prefix.split('/')[0], mask_length: Number(v.ipv4Prefix.split('/')[1]) } : undefined,
-        ipv6: v.ipv6Prefix ? { prefix: v.ipv6Prefix.split('/')[0], mask_length: Number(v.ipv6Prefix.split('/')[1]) } : undefined,
-      })),
-      switch: [], // Could populate from Switch model
-    }];
+      const connectionList = orgVis.map((vi) => {
+        const viId = String(vi._id);
+        const viPis = pis.filter((p) => String(p.virtualInterface) === viId);
+        const viVlis = vlis.filter((vl) => String(vl.virtualInterface) === viId);
+
+        const ifList = viPis.map((pi) => {
+          const sp = pi.switchPort ? spMap.get(String(pi.switchPort)) : null;
+          return {
+            switch_id: sp?.switch ? String(sp.switch) : undefined,
+            if_speed: pi.speed || (sp?.speed ? parseSpeed(String(sp.speed)) : 0),
+            if_type: '',
+          };
+        });
+
+        const vlanList = viVlis.map((vli) => {
+          const vlan = vli.vlan ? vlanMap.get(String(vli.vlan)) : null;
+          return {
+            vlan_id: vlan ? String(vlan._id) : undefined,
+            ipv4: { address: vli.ipv4Hostname || '', max_prefix: vli.maxPrefixesV4 || 100, as_macro: '' },
+            ipv6: { address: (vli as any).ipv6Hostname || '', max_prefix: vli.maxPrefixesV6 || 50, as_macro: '' },
+          };
+        });
+
+        return {
+          ixp_id: vi.infrastructure ? String(vi.infrastructure) : ixpList[0]?.ixp_id || '',
+          state: 'active',
+          connected_since: vi.createdAt ? new Date(vi.createdAt).toISOString().slice(0, 10) : '',
+          if_list: ifList,
+          vlan_list: vlanList,
+        };
+      });
+
+      return {
+        asnum: org.asn || 0,
+        member_since: org.approvedAt ? new Date(org.approvedAt).toISOString().slice(0, 10) : '',
+        name: org.name,
+        url: org.website || '',
+        peering_policy: org.peeringPolicy || 'open',
+        member_type: mapMemberType(org.type),
+        connection_list: connectionList,
+      };
+    }).filter((m) => m.asnum > 0); // IX-F requires a valid ASN
 
     const output = {
       version: '1.0',
       timestamp: new Date().toISOString(),
       ixp_list: ixpList,
-      member_list: Array.from(memberMap.values()),
+      member_list: memberList,
     };
 
-    // Cache for 5 minutes — this is a public endpoint and PeeringDB polls hourly
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.setHeader('Content-Type', 'application/json');
+    res.set('Content-Type', 'application/json');
+    res.set('Cache-Control', 'public, max-age=300');
     res.json(output);
-  } catch (err: any) {
-    console.error('[IX-F Export] Error:', err);
-    res.status(500).json({ error: 'Failed to generate IX-F export.' });
+  } catch (error) {
+    console.error('IX-F export error:', error);
+    res.status(500).json({ error: 'Failed to generate IX-F member export.' });
   }
 };
 
-export default { ixfExport };
+/** Parse "10G" / "100G" / "400G" to Mbit/s as IX-F expects. */
+function parseSpeed(s: string): number {
+  const n = parseFloat(s.replace(/[^0-9.]/g, '')) || 0;
+  if (/t/i.test(s)) return n * 1_000_000;
+  if (/g/i.test(s)) return n * 1000;
+  return n;
+}
+
+/** Map our org.type to the IX-F member_type enum. */
+function mapMemberType(type?: string): string {
+  switch (type?.toLowerCase()) {
+    case 'isp': return 'peering';
+    case 'content': return 'peering';
+    case 'enterprise': return 'peering';
+    case 'cdn': return 'peering';
+    case 'nsp': return 'peering';
+    case 'ixp': return 'ixp';
+    case 'routeserver': return 'routeserver';
+    default: return 'peering';
+  }
+}
+
+export default { ixfMemberExport };
+
+// Alias for the inline route in index.ts that imports { ixfExport }
+export { ixfMemberExport as ixfExport };
