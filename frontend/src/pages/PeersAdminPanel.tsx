@@ -124,6 +124,29 @@ const PeersAdminPanel: React.FC<Props> = ({ embedded, onBack, provisionContext, 
     else load();
   };
 
+  /** Promote a peer from the quarantine VLAN to the production peering LAN. */
+  const promotePeer = async (peer: PeerItem) => {
+    // Find the production (non-quarantine) VLAN on the same infrastructure.
+    const prodVlans = options
+      .flatMap((o) => o.vlans || [])
+      .filter((v) => !v.isQuarantine && !v.isPrivate);
+    if (!prodVlans.length) {
+      setError('No production VLAN found. Create one first in the VLANs panel.');
+      return;
+    }
+    const targetVlan = prodVlans[0];
+    if (
+      !confirm(
+        `Promote this peer from quarantine to ${targetVlan.name} (VLAN ${targetVlan.number})?\n\nThis reassigns their IPs, updates config and deploys to route servers.`
+      )
+    )
+      return;
+    setError('');
+    const res = await adminPeersApi.moveVlan(peer._id, targetVlan.id, { promote: true, deploy: true });
+    if (!res.success) setError(res.error || 'Promotion failed.');
+    else load();
+  };
+
   const totalCapacity = useMemo(
     () => connections.reduce((n, c) => n + (c.capacityMbps || 0), 0),
     [connections]
@@ -324,6 +347,11 @@ const PeersAdminPanel: React.FC<Props> = ({ embedded, onBack, provisionContext, 
                         <Btn icon={ShieldCheck} size="sm" onClick={() => setEditingPeer(p)}>
                           Policy
                         </Btn>
+                        {p.vlan?.isQuarantine && (
+                          <Btn icon={ArrowRight} size="sm" variant="primary" onClick={() => promotePeer(p)}>
+                            Promote
+                          </Btn>
+                        )}
                       </div>
                     </Td>
                   </tr>

@@ -23,6 +23,7 @@ import adminUsersRoutes from './adminUsers.routes';
 import adminSystemRoutes from './adminSystem.routes';
 import adminIxpRoutes from './adminIxp.routes';
 import adminRouteServersRoutes from './adminRouteServers.routes';
+import adminBillingRoutes from './adminBilling.routes';
 // Native IXP fabric management (replaces the IXP Manager dependency)
 import adminFabricRoutes from './adminFabric.routes';
 import adminVlansRoutes from './adminVlans.routes';
@@ -80,6 +81,7 @@ router.use('/admin/system', adminSystemRoutes);
 router.use('/admin/ixp', adminIxpRoutes);
 // Legacy: Alice-LG source registry + alice.conf generation.
 router.use('/admin/route-servers', adminRouteServersRoutes);
+router.use('/admin/billing', adminBillingRoutes);
 
 // ── Native IXP fabric ──
 // /admin/fabric    → infrastructures, facilities, cabinets, devices, ports
