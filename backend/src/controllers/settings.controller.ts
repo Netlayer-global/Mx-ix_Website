@@ -169,11 +169,12 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
 
     const { peeringDb } = req.body;
     if (peeringDb) {
-      if (!(doc as any).peeringDb) (doc as any).peeringDb = { enabled: false, baseUrl: 'https://www.peeringdb.com/api', apiKey: '', cacheTtlMinutes: 1440, syncMaxPrefixes: true, syncIrrAsSet: true };
-      if (peeringDb.enabled !== undefined) (doc as any).peeringDb.enabled = !!peeringDb.enabled;
-      if (peeringDb.baseUrl !== undefined) (doc as any).peeringDb.baseUrl = String(peeringDb.baseUrl).trim() || 'https://www.peeringdb.com/api';
-      if (peeringDb.apiKey && !isMasked(peeringDb.apiKey)) (doc as any).peeringDb.apiKey = String(peeringDb.apiKey).trim();
-      if (peeringDb.cacheTtlMinutes !== undefined) (doc as any).peeringDb.cacheTtlMinutes = Number(peeringDb.cacheTtlMinutes) || 1440;
+      if (!doc.peeringDb) (doc as any).peeringDb = { enabled: false, baseUrl: 'https://www.peeringdb.com/api', apiKey: '', cacheTtlMinutes: 1440, syncMaxPrefixes: true, syncIrrAsSet: true };
+      if (peeringDb.enabled !== undefined) doc.peeringDb.enabled = !!peeringDb.enabled;
+      if (peeringDb.baseUrl !== undefined) doc.peeringDb.baseUrl = String(peeringDb.baseUrl).trim() || 'https://www.peeringdb.com/api';
+      if (peeringDb.apiKey && !isMasked(peeringDb.apiKey)) doc.peeringDb.apiKey = String(peeringDb.apiKey).trim();
+      if (peeringDb.cacheTtlMinutes !== undefined) doc.peeringDb.cacheTtlMinutes = Number(peeringDb.cacheTtlMinutes) || 1440;
+      doc.markModified('peeringDb');
     }
 
     if (req.body.siteVisibility && typeof req.body.siteVisibility === 'object' && !Array.isArray(req.body.siteVisibility)) {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Building2,
   Network,
@@ -33,10 +33,7 @@ import {
   OrderItem,
   ConnectionItem,
   MemberContactItem,
-  RackElevation,
 } from '../services/api';
-
-const Rack3D = lazy(() => import('../components/Rack3D'));
 
 interface Props {
   embedded?: boolean;
@@ -267,7 +264,7 @@ const Customer360Panel: React.FC<Props> = ({ embedded, orgId, onBack, onProvisio
         {tab === 'contacts' && <ContactsTab contacts={contacts} />}
         {tab === 'orders' && <OrdersTab orders={orders} />}
         {tab === 'tickets' && <TicketsTab orgName={org.name} />}
-        {tab === 'documents' && <DocumentsTab documents={documents} />}
+        {tab === 'documents' && <DocumentsTab documents={documents} orgId={orgId} />}
         {tab === 'billing' && <BillingTab orgId={orgId} />}
       </main>
     </div>
@@ -362,23 +359,8 @@ const OverviewTab: React.FC<{
   );
 };
 
-// ── Connections Tab with Physical Path + 3D Rack ──
+// ── Connections Tab with Physical Path ──
 const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[] }> = ({ connections, ports }) => {
-  const [rackView, setRackView] = useState<string | null>(null); // cabinetId being viewed
-  const [elevation, setElevation] = useState<RackElevation | null>(null);
-  const [loadingRack, setLoadingRack] = useState(false);
-
-  const toggleRack = async (cabinetId: string | undefined) => {
-    if (!cabinetId) return;
-    if (rackView === cabinetId) { setRackView(null); setElevation(null); return; }
-    setRackView(cabinetId);
-    setLoadingRack(true);
-    const res = await adminFabricApi.elevation(cabinetId);
-    if (res.success && res.data) setElevation(res.data);
-    else setElevation(null);
-    setLoadingRack(false);
-  };
-
   return (
   <div className="space-y-4">
     {connections.length ? connections.map((c) => (
@@ -427,37 +409,9 @@ const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[
                 <div><span className="text-gray-500 block">Location</span><span>{p.facilityName || '—'}</span></div>
               </div>
 
-              {/* 3D Rack toggle */}
-              {p.cabinetId && (
-                <button
-                  onClick={() => toggleRack(p.cabinetId)}
-                  className="mt-3 flex items-center gap-2 text-xs font-mono text-[#F20732] hover:underline"
-                >
-                  {rackView === p.cabinetId ? '▼ Hide 3D rack' : '▶ View rack in 3D'}
-                </button>
-              )}
+              {/* Port info */}
             </div>
           ))}
-
-          {/* Inline 3D Rack View */}
-          {rackView && elevation && (
-            <div className="mt-2 rounded-lg overflow-hidden border border-gray-700">
-              <div className="px-4 py-2 bg-gray-900 border-b border-gray-700 flex items-center justify-between">
-                <span className="text-xs font-mono text-gray-400">
-                  🏗️ {elevation.cabinet.name} — {elevation.usedUnits}/{elevation.cabinet.uHeight}U occupied
-                </span>
-                <button onClick={() => { setRackView(null); setElevation(null); }} className="text-xs text-gray-500 hover:text-white">Close</button>
-              </div>
-              <Suspense fallback={<div className="h-[400px] bg-gray-950 flex items-center justify-center"><div className="w-6 h-6 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin" /></div>}>
-                <Rack3D elevation={elevation} height={400} />
-              </Suspense>
-            </div>
-          )}
-          {rackView && loadingRack && (
-            <div className="h-24 flex items-center justify-center">
-              <div className="w-5 h-5 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
 
           {/* Peering / IP info */}
           {(c.peers || []).map((peer: any, idx: number) => (
@@ -571,21 +525,70 @@ const TicketsTab: React.FC<{ orgName: string }> = ({ orgName }) => (
 );
 
 // ── Documents Tab ──
-const DocumentsTab: React.FC<{ documents: any[] }> = ({ documents }) => (
-  <div className="space-y-2">
-    {documents.length ? documents.map((d: any) => (
-      <div key={d._id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center justify-between">
-        <div>
-          <span className="font-bold text-sm">{d.name || d.filename}</span>
-          <span className="text-xs text-gray-500 ml-2">{d.category} · {new Date(d.createdAt).toLocaleDateString()}</span>
-        </div>
-        <span className="text-[10px] uppercase font-mono text-gray-500">{d.visibility || 'staff'}</span>
+const DocumentsTab: React.FC<{ documents: any[]; orgId?: string }> = ({ documents, orgId }) => {
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadForm, setUploadForm] = useState({ filename: '', category: 'contract' as any, description: '' });
+
+  const handleUpload = async () => {
+    if (!uploadForm.filename.trim() || !orgId) return;
+    setUploading(true);
+    await adminDocumentsApi.create(orgId, {
+      filename: uploadForm.filename,
+      storagePath: `/uploads/${orgId}/${uploadForm.filename}`,
+      category: uploadForm.category,
+      description: uploadForm.description,
+    });
+    setUploading(false);
+    setShowUpload(false);
+    setUploadForm({ filename: '', category: 'contract', description: '' });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-sm text-gray-400">{documents.length} Documents</h3>
+        <button onClick={() => setShowUpload(!showUpload)} className="flex items-center gap-2 px-3 py-1.5 bg-[#F20732] rounded text-xs font-bold hover:bg-[#C00628] transition-colors cursor-pointer">
+          <FileText className="w-3.5 h-3.5" /> Add Document
+        </button>
       </div>
-    )) : (
-      <p className="text-gray-500 text-sm py-8 text-center">No documents uploaded.</p>
-    )}
-  </div>
-);
+
+      {showUpload && (
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <input className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" placeholder="Document name / filename" value={uploadForm.filename} onChange={(e) => setUploadForm({ ...uploadForm, filename: e.target.value })} />
+            <select className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" value={uploadForm.category} onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}>
+              <option value="contract">Contract</option>
+              <option value="loa">LOA</option>
+              <option value="invoice">Invoice</option>
+              <option value="technical">Technical</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <input className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" placeholder="Description (optional)" value={uploadForm.description} onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })} />
+          <div className="flex gap-2">
+            <button onClick={handleUpload} disabled={uploading || !uploadForm.filename.trim()} className="px-4 py-2 bg-green-600 rounded text-xs font-bold hover:bg-green-500 disabled:opacity-50 cursor-pointer">
+              {uploading ? 'Saving...' : 'Save Document'}
+            </button>
+            <button onClick={() => setShowUpload(false)} className="px-4 py-2 bg-gray-700 rounded text-xs font-bold hover:bg-gray-600 cursor-pointer">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {documents.length ? documents.map((d: any) => (
+        <div key={d._id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center justify-between">
+          <div>
+            <span className="font-bold text-sm">{d.name || d.filename}</span>
+            <span className="text-xs text-gray-500 ml-2">{d.category} - {new Date(d.createdAt).toLocaleDateString()}</span>
+          </div>
+          <span className="text-[10px] uppercase font-mono text-gray-500">{d.visibility || 'staff'}</span>
+        </div>
+      )) : !showUpload ? (
+        <p className="text-gray-500 text-sm py-8 text-center">No documents uploaded.</p>
+      ) : null}
+    </div>
+  );
+};
 
 // ── Helpers ──
 const QuickStat: React.FC<{ icon: React.ElementType; label: string; value: number | string; sub?: string }> = ({ icon: Icon, label, value, sub }) => (
