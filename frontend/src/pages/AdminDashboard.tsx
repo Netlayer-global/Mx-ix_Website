@@ -32,6 +32,7 @@ import {
   EyeOff,
   Sparkles,
   Calendar,
+  Grid3X3 as GridIcon,
 } from 'lucide-react';
 import { authApi, servicesApi, locationsApi } from '../services/api';
 
@@ -56,6 +57,7 @@ const RouteServersAdminPanel = lazy(() => import('./RouteServersAdminPanel'));
 const SitePromoAdminPanel = lazy(() => import('./SitePromoAdminPanel'));
 const IxSetupWizard = lazy(() => import('./IxSetupWizard'));
 const MaintenanceAdminPanel = lazy(() => import('./MaintenanceAdminPanel'));
+const PeeringMatrixPanel = lazy(() => import('./PeeringMatrixPanel'));
 // ── IXP fabric panels ──
 const FabricAdminPanel = lazy(() => import('./FabricAdminPanel'));
 const VlansAdminPanel = lazy(() => import('./VlansAdminPanel'));
@@ -95,7 +97,8 @@ type AdminSection =
   | 'corebundles'
   | 'promo'
   | 'ixsetup'
-  | 'maintenance';
+  | 'maintenance'
+  | 'peeringmatrix';
 
 const SECTION_META: Record<AdminSection, { title: string; icon: React.ElementType; desc: string }> = {
   dashboard: { title: 'Overview', icon: Home, desc: 'Control panel summary' },
@@ -127,19 +130,20 @@ const SECTION_META: Record<AdminSection, { title: string; icon: React.ElementTyp
   promo: { title: 'Site Announcement', icon: Megaphone, desc: 'Headline bar & entry popup on the website' },
   ixsetup: { title: 'IX Setup', icon: Sparkles, desc: 'Guided setup: infrastructure → facility → rack → device → VLAN → RS' },
   maintenance: { title: 'Maintenance', icon: Calendar, desc: 'Planned maintenance windows & notifications' },
+  peeringmatrix: { title: 'Peering Matrix', icon: GridIcon, desc: 'Member-to-member connectivity heatmap' },
 };
 
 const NAV_GROUPS: { label: string; items: AdminSection[] }[] = [
   { label: '', items: ['dashboard'] },
   { label: 'Members', items: ['customers', 'orders', 'support', 'noc'] },
-  { label: 'IX Operations', items: ['ixsetup', 'fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'maintenance', 'routeservers', 'status'] },
+  { label: 'IX Operations', items: ['ixsetup', 'fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'maintenance', 'peeringmatrix', 'routeservers', 'status'] },
   { label: 'Website', items: ['promo', 'services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'] },
   { label: 'System', items: ['announcements', 'integrations', 'adminusers', 'audit', 'templates'] },
 ];
 
 // Section access by admin role (super-admin/admin see everything).
 const ROLE_ACCESS: Record<string, AdminSection[]> = {
-  noc: ['customers', 'orders', 'support', 'status', 'noc', 'announcements', 'locations', 'routeservers', 'fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'maintenance', 'integrations', 'members'],
+  noc: ['customers', 'orders', 'support', 'status', 'noc', 'announcements', 'locations', 'routeservers', 'fabric', 'vlans', 'peers', 'bird', 'peeringdb', 'patchpanels', 'corebundles', 'maintenance', 'peeringmatrix', 'integrations', 'members'],
   support: ['customers', 'support'],
   billing: ['customers', 'orders'],
   editor: ['promo', 'services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'],
@@ -339,6 +343,7 @@ const AdminDashboard: React.FC = () => {
       case 'promo': return <SitePromoAdminPanel embedded />;
       case 'ixsetup': return <IxSetupWizard embedded onNavigateSection={(s) => go(s as AdminSection)} />;
       case 'maintenance': return <MaintenanceAdminPanel embedded />;
+      case 'peeringmatrix': return <PeeringMatrixPanel embedded />;
       case 'fabric': return <FabricAdminPanel embedded />;
       case 'vlans': return <VlansAdminPanel embedded />;
       case 'peers': return <PeersAdminPanel embedded provisionContext={provisionContext} onProvisionDone={() => setProvisionContext(null)} />;
