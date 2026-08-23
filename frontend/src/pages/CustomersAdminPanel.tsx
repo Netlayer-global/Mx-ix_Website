@@ -38,6 +38,8 @@ interface Props {
   onBack?: () => void;
   /** Open the 360° customer view for a specific org. */
   onSelectCustomer?: (orgId: string) => void;
+  /** Trigger the new customer wizard. */
+  onNewCustomer?: () => void;
 }
 
 const TYPES = ['ISP', 'Content', 'Cloud', 'CDN', 'Enterprise', 'Academic', 'Other'];
@@ -79,7 +81,7 @@ const emptyForm = {
   userPassword: '',
 };
 
-const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack, onSelectCustomer }) => {
+const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack, onSelectCustomer, onNewCustomer }) => {
   const [customers, setCustomers] = useState<CustomerOrg[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | OrgStatus>('all');

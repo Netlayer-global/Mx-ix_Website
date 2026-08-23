@@ -48,6 +48,7 @@ const MembersAdminPanel = lazy(() => import('./MembersAdminPanel'));
 const CustomersAdminPanel = lazy(() => import('./CustomersAdminPanel'));
 const Customer360Panel = lazy(() => import('./Customer360Panel'));
 const AddSwitchWizard = lazy(() => import('../components/AddSwitchWizard'));
+const NewCustomerWizard = lazy(() => import('./NewCustomerWizard'));
 const OrdersAdminPanel = lazy(() => import('./OrdersAdminPanel'));
 const SupportAdminPanel = lazy(() => import('./SupportAdminPanel'));
 const AdminUsersPanel = lazy(() => import('./AdminUsersPanel'));
@@ -167,6 +168,7 @@ const AdminDashboard: React.FC = () => {
   const [provisionContext, setProvisionContext] = useState<any>(null);
   const [customer360Id, setCustomer360Id] = useState<string | null>(null);
   const [showAddSwitch, setShowAddSwitch] = useState(false);
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
 
   const [stats, setStats] = useState({ services: 0, locations: 0, asns: 0, sites: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
@@ -249,6 +251,7 @@ const AdminDashboard: React.FC = () => {
 
   const go = (id: AdminSection | string) => {
     if (id === 'addswitch') { setShowAddSwitch(true); return; }
+    if (id === 'addcustomer') { setShowNewCustomer(true); return; }
     setCurrentSection(id as AdminSection);
     setMobileOpen(false);
   };
@@ -338,7 +341,7 @@ const AdminDashboard: React.FC = () => {
       case 'members': return <MembersAdminPanel embedded />;
       case 'customers': return customer360Id
         ? <Customer360Panel embedded orgId={customer360Id} onBack={() => setCustomer360Id(null)} onProvision={(id, name) => { setProvisionContext({ orgId: id, orgName: name }); go('peers' as AdminSection); }} />
-        : <CustomersAdminPanel embedded onSelectCustomer={(id: string) => setCustomer360Id(id)} />;
+        : <CustomersAdminPanel embedded onSelectCustomer={(id: string) => setCustomer360Id(id)} onNewCustomer={() => setShowNewCustomer(true)} />;
       case 'orders': return <OrdersAdminPanel embedded onNavigateSection={(section, ctx) => { setProvisionContext(ctx); go(section as AdminSection); }} />;
       case 'support': return <SupportAdminPanel embedded />;
       case 'adminusers': return <AdminUsersPanel embedded />;
@@ -486,6 +489,16 @@ const AdminDashboard: React.FC = () => {
         </React.Suspense>
       )}
 
+      {showNewCustomer && (
+        <React.Suspense fallback={null}>
+          <NewCustomerWizard
+            options={[]}
+            onClose={() => setShowNewCustomer(false)}
+            onDone={(id) => { setShowNewCustomer(false); setCustomer360Id(id); go('customers' as AdminSection); }}
+          />
+        </React.Suspense>
+      )}
+
       {/* Mobile menu FAB */}
       {!mobileOpen && (
         <button
@@ -522,16 +535,7 @@ const DashboardOverview: React.FC<{
       <StatCard label="Sites" value={stats.sites} loading={loadingStats} />
     </div>
 
-    {/* Quick actions — the daily tasks operators need one click away */}
-    <h2 className="text-sm font-bold mb-4 text-gray-500 font-mono uppercase tracking-wider">Quick Actions</h2>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
-      <QuickAction icon="⚡" label="Provision Port" desc="End-to-end: member → port → VLAN → Bird" onClick={() => onPick('peers' as AdminSection)} color="bg-green-600" />
-      <QuickAction icon="🖥️" label="Add Switch" desc="Mount a new switch in a rack" onClick={() => onPick('addswitch' as any)} color="bg-blue-600" />
-      <QuickAction icon="👤" label="Add Customer" desc="Create a new member organization" onClick={() => onPick('customers' as AdminSection)} color="bg-purple-600" />
-      <QuickAction icon="📋" label="IX Setup" desc="Guided infrastructure wizard" onClick={() => onPick('ixsetup' as AdminSection)} color="bg-amber-600" />
-    </div>
-
-    <h2 className="text-sm font-bold mb-4 text-gray-500 font-mono uppercase tracking-wider">Quick access</h2>
+    <h2 className="text-sm font-bold mb-4 text-gray-500 font-mono uppercase tracking-wider">All Sections</h2>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {sections.map((id) => {
         const meta = SECTION_META[id];
