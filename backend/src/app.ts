@@ -120,6 +120,17 @@ const startServer = async () => {
       }
     }, 24 * 60 * 60 * 1000);
 
+    // Billing overdue check (every 24h) — auto-suspend members with overdue
+    // Zoho invoices, and auto-reactivate when payment clears.
+    setInterval(async () => {
+      try {
+        const { checkZohoOverdueInvoices } = await import('./services/memberSuspend.service');
+        await checkZohoOverdueInvoices();
+      } catch (e) {
+        console.error('[BillingCron] Overdue invoice check error:', e);
+      }
+    }, 24 * 60 * 60 * 1000);
+
     // Start listening
     app.listen(config.port, () => {
       console.log('');

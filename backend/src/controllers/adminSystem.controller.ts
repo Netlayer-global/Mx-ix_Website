@@ -176,6 +176,11 @@ export const nocDashboard = async (_req: Request, res: Response): Promise<void> 
     const urgentByOrg = new Map<string, number>();
     urgentTickets.forEach((t: any) => urgentByOrg.set(String(t.organization), (urgentByOrg.get(String(t.organization)) || 0) + 1));
 
+    // Check for orgs with zohoContactId that might be billing-overdue (if they're suspended with zoho link)
+    const overdueOrgs = new Set(
+      orgs.filter((o: any) => o.status === 'suspended' && (o as any).zohoContactId).map((o: any) => String(o._id))
+    );
+
     const atRisk = orgs
       .map((o: any) => {
         const reasons: string[] = [];
@@ -183,9 +188,11 @@ export const nocDashboard = async (_req: Request, res: Response): Promise<void> 
         if (o.status === 'pending') reasons.push('Awaiting approval');
         if (urgentByOrg.get(String(o._id))) reasons.push('Urgent ticket open');
         if (o.status === 'active' && !portsByOrg.get(String(o._id))) reasons.push('No active ports');
+        if (overdueOrgs.has(String(o._id))) reasons.push('Billing overdue');
         return reasons.length ? { id: o._id, name: o.name, asn: o.asn, status: o.status, reasons } : null;
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .sort((a: any, b: any) => b.reasons.length - a.reasons.length);
 
     res.json({
       success: true,

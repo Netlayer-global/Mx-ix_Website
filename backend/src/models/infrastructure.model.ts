@@ -42,6 +42,8 @@ export interface IInfrastructure extends Document {
   nocPhone?: string;
   nocWebsite?: string;
   notes?: string;
+  /** Custom port speed presets in Mbit/s available on this IX. */
+  portSpeeds: number[];
   enabled: boolean;
   order: number;
   createdAt: Date;
@@ -74,6 +76,8 @@ const infrastructureSchema = new Schema<IInfrastructure>(
     nocPhone: { type: String, default: '' },
     nocWebsite: { type: String, default: '' },
     notes: { type: String, default: '' },
+    /** Custom port speed presets in Mbit/s available on this IX (e.g. [1000, 10000, 100000, 400000]). */
+    portSpeeds: { type: [Number], default: [1000, 10000, 100000, 400000] },
     enabled: { type: Boolean, default: true },
     order: { type: Number, default: 0 },
   },

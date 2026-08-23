@@ -10,10 +10,12 @@ import {
   PatchPanel,
   Vlan,
   RouteServer,
+  VirtualInterface,
 } from '../models';
 import { getRackElevation, checkPlacement, syncDeviceFacility } from '../services/rack.service';
 import { logAudit } from '../services/audit.service';
 import { pick, str, int, oneOf, objectId, param, Validator } from '../utils/validate.util';
+import { getEffectiveGrafana } from '../models/settings.model';
 
 /**
  * Physical fabric administration: the Org → Facility → Cabinet → Unit → Device →
@@ -80,6 +82,7 @@ const INFRA_FIELDS = [
   'nocPhone',
   'nocWebsite',
   'notes',
+  'portSpeeds',
   'enabled',
   'order',
 ] as const;
@@ -861,7 +864,278 @@ export const deletePort = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
+// ══════════════════════════════════════════════════════════════════════════════
+// IX Dashboard — aggregate stats per infrastructure for the overview cards
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const ixDashboard = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const rows = await Infrastructure.find().sort({ order: 1, name: 1 }).lean();
+    const ids = rows.map((r: any) => r._id);
+
+    const [switchCounts, facilityCounts, cabinetCounts, vlanCounts, rsCounts, memberCounts, portStats] = await Promise.all([
+      Switch.aggregate([{ $match: { infrastructure: { $in: ids } } }, { $group: { _id: '$infrastructure', n: { $sum: 1 } } }]),
+      Facility.aggregate([{ $match: { infrastructure: { $in: ids } } }, { $group: { _id: '$infrastructure', n: { $sum: 1 } } }]),
+      Cabinet.aggregate([
+        {
+          $lookup: {
+            from: 'facilities',
+            localField: 'facility',
+            foreignField: '_id',
+            as: 'fac',
+          },
+        },
+        { $unwind: '$fac' },
+        { $match: { 'fac.infrastructure': { $in: ids } } },
+        { $group: { _id: '$fac.infrastructure', n: { $sum: 1 } } },
+      ]),
+      Vlan.aggregate([{ $match: { infrastructure: { $in: ids } } }, { $group: { _id: '$infrastructure', n: { $sum: 1 } } }]),
+      RouteServer.aggregate([{ $match: { infrastructure: { $in: ids } } }, { $group: { _id: '$infrastructure', n: { $sum: 1 } } }]),
+      // Unique organizations connected to each infrastructure
+      VirtualInterface.aggregate([
+        { $match: { infrastructure: { $in: ids } } },
+        { $group: { _id: '$infrastructure', orgs: { $addToSet: '$organization' } } },
+        { $project: { _id: 1, n: { $size: '$orgs' } } },
+      ]),
+      // Port capacity: total ports and assigned ports per infrastructure
+      SwitchPort.aggregate([
+        {
+          $lookup: {
+            from: 'switches',
+            localField: 'switch',
+            foreignField: '_id',
+            as: 'sw',
+          },
+        },
+        { $unwind: '$sw' },
+        { $match: { 'sw.infrastructure': { $in: ids } } },
+        {
+          $group: {
+            _id: '$sw.infrastructure',
+            totalPorts: { $sum: 1 },
+            assignedPorts: { $sum: { $cond: [{ $eq: ['$status', 'assigned'] }, 1, 0] } },
+            totalCapacityMbps: { $sum: { $ifNull: ['$speed', 10000] } },
+          },
+        },
+      ]),
+    ]);
+
+    const asMap = (arr: any[]) => new Map(arr.map((r) => [String(r._id), r]));
+    const swM = asMap(switchCounts);
+    const facM = asMap(facilityCounts);
+    const cabM = asMap(cabinetCounts);
+    const vlM = asMap(vlanCounts);
+    const rsM = asMap(rsCounts);
+    const memM = asMap(memberCounts);
+    const portM = asMap(portStats);
+
+    const data = rows.map((r: any) => {
+      const id = String(r._id);
+      const ps = portM.get(id);
+      return {
+        ...r,
+        switchCount: swM.get(id)?.n || 0,
+        facilityCount: facM.get(id)?.n || 0,
+        cabinetCount: cabM.get(id)?.n || 0,
+        vlanCount: vlM.get(id)?.n || 0,
+        routeServerCount: rsM.get(id)?.n || 0,
+        memberCount: memM.get(id)?.n || 0,
+        totalPorts: ps?.totalPorts || 0,
+        assignedPorts: ps?.assignedPorts || 0,
+        totalCapacityMbps: ps?.totalCapacityMbps || 0,
+      };
+    });
+
+    ok(res, data);
+  } catch (err) {
+    console.error('[ixDashboard]', err);
+    bad(res, 'Failed to load IX dashboard.', 500);
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════════
+// IX Live Stats — real-time traffic + utilization for one infrastructure
+// ══════════════════════════════════════════════════════════════════════════════
+
+const bitsToGbps = (bits: number) => Math.round((bits / 1_000_000_000) * 100) / 100;
+const bitsToMbps = (bits: number) => Math.round((bits / 1_000_000) * 100) / 100;
+
+/** Query Zabbix via Grafana for a switch's aggregate bits received/sent. */
+async function queryTrafficForHost(
+  g: { url: string; apiKey: string; zabbixUid: string },
+  host: string,
+  from: string
+): Promise<{ inbound: number[]; outbound: number[]; timestamps: number[] } | null> {
+  try {
+    const queryItem = async (itemFilter: string): Promise<{ t: number[]; v: number[] } | null> => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const r = await fetch(`${g.url}/api/ds/query`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${g.apiKey}`, 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          queries: [{
+            refId: 'A',
+            datasource: { type: 'alexanderzobnin-zabbix-datasource', uid: g.zabbixUid },
+            queryType: '0',
+            group: { filter: '/.*/' },
+            host: { filter: host },
+            item: { filter: itemFilter },
+            options: { showDisabledItems: false, skipEmptyValues: false, useTrends: 'default' },
+          }],
+          from,
+          to: 'now',
+        }),
+      });
+      clearTimeout(timeout);
+      if (!r.ok) return null;
+      const data = (await r.json()) as any;
+      const values = data.results?.A?.frames?.[0]?.data?.values;
+      if (!values || !values[0] || !values[1]) return null;
+      return { t: values[0] as number[], v: values[1] as number[] };
+    };
+
+    const [rx, tx] = await Promise.all([
+      queryItem('/[Bb]its received/'),
+      queryItem('/[Bb]its sent/'),
+    ]);
+
+    if (!rx || !rx.v.length) return null;
+    return {
+      timestamps: rx.t,
+      inbound: rx.v.map((b) => Math.abs(Number(b) || 0)),
+      outbound: (tx?.v || rx.v.map(() => 0)).map((b) => Math.abs(Number(b) || 0)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export const ixLiveStats = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const infraId = req.params.id;
+    const range = (['1h', '24h', '7d', '30d'].includes(String(req.query.range)) ? req.query.range : '1h') as string;
+    const RANGE_FROM: Record<string, string> = { '1h': 'now-1h', '24h': 'now-24h', '7d': 'now-7d', '30d': 'now-30d' };
+
+    const infra = await Infrastructure.findById(infraId).lean();
+    if (!infra) return bad(res, 'Infrastructure not found.', 404);
+
+    // Get all switches with zabbixHostName for this infrastructure
+    const switches = await Switch.find({ infrastructure: infraId, active: true })
+      .select('name zabbixHostName')
+      .lean();
+    const monitoredSwitches = (switches as any[]).filter((s) => s.zabbixHostName);
+
+    // Static stats (from DB aggregations)
+    const [memberCount, portStats] = await Promise.all([
+      VirtualInterface.aggregate([
+        { $match: { infrastructure: infra._id } },
+        { $group: { _id: null, orgs: { $addToSet: '$organization' } } },
+        { $project: { n: { $size: '$orgs' } } },
+      ]),
+      SwitchPort.aggregate([
+        { $lookup: { from: 'switches', localField: 'switch', foreignField: '_id', as: 'sw' } },
+        { $unwind: '$sw' },
+        { $match: { 'sw.infrastructure': infra._id } },
+        {
+          $group: {
+            _id: null,
+            totalPorts: { $sum: 1 },
+            assignedPorts: { $sum: { $cond: [{ $eq: ['$status', 'assigned'] }, 1, 0] } },
+            totalCapacityMbps: { $sum: { $ifNull: ['$speed', 10000] } },
+          },
+        },
+      ]),
+    ]);
+
+    const members = memberCount[0]?.n || 0;
+    const ps = portStats[0] || { totalPorts: 0, assignedPorts: 0, totalCapacityMbps: 0 };
+    const portUtilization = ps.totalPorts > 0 ? Math.round((ps.assignedPorts / ps.totalPorts) * 100) : 0;
+    const totalCapacityGbps = Math.round(ps.totalCapacityMbps / 1000);
+
+    // Traffic from Grafana/Zabbix
+    const g = await getEffectiveGrafana();
+    let trafficData: {
+      currentInbound: number;
+      currentOutbound: number;
+      currentTotal: number;
+      peakInbound: number;
+      peakOutbound: number;
+      peakTotal: number;
+      series: { timestamps: number[]; inbound: number[]; outbound: number[] } | null;
+      source: 'zabbix' | 'unavailable';
+    } = {
+      currentInbound: 0, currentOutbound: 0, currentTotal: 0,
+      peakInbound: 0, peakOutbound: 0, peakTotal: 0,
+      series: null, source: 'unavailable',
+    };
+
+    if (g.enabled && g.url && g.apiKey && monitoredSwitches.length > 0) {
+      const from = RANGE_FROM[range];
+      const results = await Promise.all(
+        monitoredSwitches.map((sw: any) => queryTrafficForHost(g, sw.zabbixHostName, from))
+      );
+
+      const valid = results.filter((r): r is NonNullable<typeof r> => r !== null);
+      if (valid.length > 0) {
+        // Aggregate all switch traffic
+        const baseLen = valid[0].timestamps.length;
+        const aggInbound = new Array(baseLen).fill(0);
+        const aggOutbound = new Array(baseLen).fill(0);
+
+        for (const r of valid) {
+          const len = Math.min(r.inbound.length, baseLen);
+          for (let i = 0; i < len; i++) {
+            aggInbound[i] += r.inbound[i];
+            aggOutbound[i] += r.outbound[i];
+          }
+        }
+
+        const lastIdx = baseLen - 1;
+        const currentIn = aggInbound[lastIdx] || 0;
+        const currentOut = aggOutbound[lastIdx] || 0;
+        const peakIn = Math.max(...aggInbound);
+        const peakOut = Math.max(...aggOutbound);
+
+        trafficData = {
+          currentInbound: bitsToGbps(currentIn),
+          currentOutbound: bitsToGbps(currentOut),
+          currentTotal: bitsToGbps(currentIn + currentOut),
+          peakInbound: bitsToGbps(peakIn),
+          peakOutbound: bitsToGbps(peakOut),
+          peakTotal: bitsToGbps(peakIn + peakOut),
+          series: {
+            timestamps: valid[0].timestamps,
+            inbound: aggInbound.map((b) => bitsToMbps(b)),
+            outbound: aggOutbound.map((b) => bitsToMbps(b)),
+          },
+          source: 'zabbix',
+        };
+      }
+    }
+
+    ok(res, {
+      infrastructure: { id: infra._id, name: (infra as any).name, shortname: (infra as any).shortname, asn: (infra as any).asn },
+      range,
+      members,
+      totalPorts: ps.totalPorts,
+      assignedPorts: ps.assignedPorts,
+      portUtilization,
+      totalCapacityGbps,
+      switchesMonitored: monitoredSwitches.length,
+      switchesTotal: switches.length,
+      traffic: trafficData,
+    });
+  } catch (err) {
+    console.error('[ixLiveStats]', err);
+    bad(res, 'Failed to load IX live stats.', 500);
+  }
+};
+
 export default {
+  ixDashboard,
+  ixLiveStats,
   listInfrastructures,
   createInfrastructure,
   updateInfrastructure,

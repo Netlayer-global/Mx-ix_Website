@@ -16,6 +16,8 @@ import {
   Wand2,
   Cable,
   Activity,
+  Ban,
+  PlayCircle,
 } from 'lucide-react';
 import {
   adminCustomersApi,
@@ -63,6 +65,9 @@ const Customer360Panel: React.FC<Props> = ({ embedded, orgId, onBack, onProvisio
   const [documents, setDocuments] = useState<any[]>([]);
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [connections, setConnections] = useState<ConnectionItem[]>([]);
+  const [statusAction, setStatusAction] = useState<'suspend' | 'activate' | null>(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [suspendReason, setSuspendReason] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +96,19 @@ const Customer360Panel: React.FC<Props> = ({ embedded, orgId, onBack, onProvisio
   }, [orgId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleStatusChange = async () => {
+    if (!statusAction || !org) return;
+    setStatusBusy(true);
+    const newStatus = statusAction === 'suspend' ? 'suspended' : 'active';
+    const res = await adminCustomersApi.setStatus(orgId, newStatus as any, suspendReason || undefined);
+    if (res.success) {
+      setOrg({ ...org, status: newStatus as any });
+    }
+    setStatusBusy(false);
+    setStatusAction(null);
+    setSuspendReason('');
+  };
 
   if (loading) {
     return (
@@ -146,6 +164,23 @@ const Customer360Panel: React.FC<Props> = ({ embedded, orgId, onBack, onProvisio
                 <Wand2 className="w-4 h-4" /> Provision Port
               </button>
             )}
+            {/* Suspend / Activate */}
+            {org.status === 'active' && (
+              <button
+                onClick={() => setStatusAction('suspend')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-red-600/20 border border-red-500/40 text-red-400 rounded font-bold text-sm hover:bg-red-600/30 transition-colors cursor-pointer"
+              >
+                <Ban className="w-4 h-4" /> Suspend
+              </button>
+            )}
+            {org.status === 'suspended' && (
+              <button
+                onClick={() => setStatusAction('activate')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-green-600/20 border border-green-500/40 text-green-400 rounded font-bold text-sm hover:bg-green-600/30 transition-colors cursor-pointer"
+              >
+                <PlayCircle className="w-4 h-4" /> Activate
+              </button>
+            )}
           </div>
 
           {/* Tabs */}
@@ -166,6 +201,53 @@ const Customer360Panel: React.FC<Props> = ({ embedded, orgId, onBack, onProvisio
           </nav>
         </div>
       </header>
+
+      {/* Suspend/Activate Confirmation Modal */}
+      {statusAction && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 max-w-md w-full space-y-4">
+            <h3 className="text-lg font-bold">
+              {statusAction === 'suspend' ? '⚠️ Suspend Member' : '✅ Activate Member'}
+            </h3>
+            <p className="text-sm text-gray-400">
+              {statusAction === 'suspend'
+                ? `This will set ${org.name} to suspended and redeploy route servers. Their BGP sessions will be removed from the RS config.`
+                : `This will reactivate ${org.name} and redeploy route servers. Their BGP sessions will be restored.`}
+            </p>
+            {statusAction === 'suspend' && (
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-gray-400 mb-1.5">Reason (optional)</label>
+                <input
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-[#F20732] transition-colors"
+                  placeholder="e.g. Overdue invoice, policy violation..."
+                  value={suspendReason}
+                  onChange={(e) => setSuspendReason(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                onClick={handleStatusChange}
+                disabled={statusBusy}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer ${
+                  statusAction === 'suspend'
+                    ? 'bg-red-600 hover:bg-red-500 text-white'
+                    : 'bg-green-600 hover:bg-green-500 text-white'
+                }`}
+              >
+                {statusBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+                {statusAction === 'suspend' ? 'Confirm Suspend' : 'Confirm Activate'}
+              </button>
+              <button
+                onClick={() => { setStatusAction(null); setSuspendReason(''); }}
+                className="px-5 py-2.5 bg-gray-700 rounded font-bold text-sm hover:bg-gray-600 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {tab === 'overview' && (

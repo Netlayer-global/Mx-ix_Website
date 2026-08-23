@@ -58,7 +58,7 @@ const EmailTemplatesPanel = lazy(() => import('./EmailTemplatesPanel'));
 const NocDashboardPanel = lazy(() => import('./NocDashboardPanel'));
 const RouteServersAdminPanel = lazy(() => import('./RouteServersAdminPanel'));
 const SitePromoAdminPanel = lazy(() => import('./SitePromoAdminPanel'));
-const IxSetupWizard = lazy(() => import('./IxSetupWizard'));
+const IxDashboard = lazy(() => import('./IxDashboard'));
 const MaintenanceAdminPanel = lazy(() => import('./MaintenanceAdminPanel'));
 const PeeringMatrixPanel = lazy(() => import('./PeeringMatrixPanel'));
 // ── IXP fabric panels ──
@@ -131,7 +131,7 @@ const SECTION_META: Record<AdminSection, { title: string; icon: React.ElementTyp
   audit: { title: 'Audit Log', icon: ScrollText, desc: 'Admin actions with diff' },
   templates: { title: 'Email Templates', icon: Mail, desc: 'Transactional email content' },
   promo: { title: 'Site Announcement', icon: Megaphone, desc: 'Headline bar & entry popup on the website' },
-  ixsetup: { title: 'IX Setup', icon: Sparkles, desc: 'Guided setup: infrastructure → facility → rack → device → VLAN → RS' },
+  ixsetup: { title: 'IX Dashboard', icon: Sparkles, desc: 'Exchange points overview — members, capacity & infrastructure' },
   maintenance: { title: 'Maintenance', icon: Calendar, desc: 'Planned maintenance windows & notifications' },
   peeringmatrix: { title: 'Peering Matrix', icon: GridIcon, desc: 'Member-to-member connectivity heatmap' },
 };
@@ -351,7 +351,7 @@ const AdminDashboard: React.FC = () => {
       case 'noc': return <NocDashboardPanel embedded />;
       case 'routeservers': return <RouteServersAdminPanel embedded />;
       case 'promo': return <SitePromoAdminPanel embedded />;
-      case 'ixsetup': return <IxSetupWizard embedded onNavigateSection={(s) => go(s as AdminSection)} />;
+      case 'ixsetup': return <IxDashboard embedded onNavigateSection={(s) => go(s as AdminSection)} />;
       case 'maintenance': return <MaintenanceAdminPanel embedded />;
       case 'peeringmatrix': return <PeeringMatrixPanel embedded />;
       case 'fabric': return <FabricAdminPanel embedded />;

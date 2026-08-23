@@ -4,6 +4,7 @@ import { Organization, PortalUser, Port, MemberContact, CustomerNote, CustomerTa
 import config from '../config/environment';
 import { logAudit } from '../services/audit.service';
 import zohoBooks from '../services/zohoBooks.service';
+import { suspendMember, activateMember } from '../services/memberSuspend.service';
 
 /**
  * GET /api/admin/customers/zoho/contacts?q=...
@@ -158,7 +159,7 @@ export const updateCustomer = async (req: Request, res: Response): Promise<void>
  */
 export const setCustomerStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status } = req.body as { status: 'active' | 'suspended' | 'pending' };
+    const { status, reason } = req.body as { status: 'active' | 'suspended' | 'pending'; reason?: string };
     if (!['active', 'suspended', 'pending'].includes(status)) {
       res.status(400).json({ success: false, error: 'Invalid status.' });
       return;
@@ -168,6 +169,28 @@ export const setCustomerStatus = async (req: Request, res: Response): Promise<vo
       res.status(404).json({ success: false, error: 'Customer not found.' });
       return;
     }
+
+    // For suspend/activate, use the service that also redeploys Bird config
+    if (status === 'suspended' && org.status !== 'suspended') {
+      const result = await suspendMember(String(org._id), {
+        reason: reason || 'Manually suspended by admin.',
+        actor: req.user?.email || 'admin',
+        notifyMember: true,
+      });
+      res.json({ success: result.ok, data: { ...result, organization: await Organization.findById(req.params.id) } });
+      return;
+    }
+
+    if (status === 'active' && org.status !== 'active') {
+      const result = await activateMember(String(org._id), {
+        actor: req.user?.email || 'admin',
+        notifyMember: true,
+      });
+      res.json({ success: result.ok, data: { ...result, organization: await Organization.findById(req.params.id) } });
+      return;
+    }
+
+    // Pending or same status — simple update without Bird redeploy
     const prevStatus = org.status;
     const update: any = { status };
     if (status === 'active') {
@@ -183,7 +206,7 @@ export const setCustomerStatus = async (req: Request, res: Response): Promise<vo
       before: { status: prevStatus },
       after: { status },
     });
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: { organization: updated } });
   } catch (error) {
     console.error('Set customer status error:', error);
     res.status(500).json({ success: false, error: 'Failed to update status.' });

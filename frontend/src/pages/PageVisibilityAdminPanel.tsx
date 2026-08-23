@@ -109,13 +109,8 @@ const PageVisibilityAdminPanel: React.FC<PageVisibilityAdminPanelProps> = ({ emb
                   const visible = isPublicPageVisible(visibility, page.id);
                   const saving = savingPage === page.id;
                   return (
-                    <article
-                      key={page.id}
-                      className={`flex items-center gap-4 rounded-lg border bg-gray-800 p-4 transition-colors ${
-                        visible ? 'border-emerald-500/30 hover:border-emerald-500/50' : 'border-[#F20732]/30 hover:border-[#F20732]/50'
-                      }`}
-                    >
-                      <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg ${visible ? 'bg-green-500/10 text-green-500' : 'bg-[#F20732]/10 text-[#F20732]'}`} aria-hidden="true">
+                    <article key={page.id} className="flex items-center gap-4 rounded-lg border border-gray-700 bg-gray-800 p-4">
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-gray-700 text-gray-500" aria-hidden="true">
                         {visible ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -126,33 +121,15 @@ const PageVisibilityAdminPanel: React.FC<PageVisibilityAdminPanelProps> = ({ emb
                         type="button"
                         onClick={() => togglePage(page.id)}
                         disabled={savingPage !== null}
-                        role="switch"
-                        aria-checked={visible}
-                        aria-label={`${page.label} visibility: ${visible ? 'visible' : 'hidden'}`}
-                        className={`group relative inline-flex h-11 w-36 flex-shrink-0 cursor-pointer select-none items-center rounded-full border p-1 font-mono text-[10px] font-bold uppercase tracking-wider transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F20732] focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-50 ${
+                        aria-label={`${visible ? 'Hide' : 'Show'} ${page.label}`}
+                        className={`inline-flex min-w-[102px] cursor-pointer items-center justify-center gap-2 rounded px-3 py-2.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F20732] focus-visible:ring-offset-2 focus-visible:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-50 ${
                           visible
-                            ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15'
-                            : 'border-[#F20732]/45 bg-[#F20732]/10 text-[#B91C3A] hover:bg-[#F20732]/15'
+                            ? 'bg-[#F20732] text-white hover:bg-[#C00628]'
+                            : 'bg-gray-700 text-white hover:bg-gray-600'
                         }`}
                       >
-                        <span className="flex w-full items-center justify-between px-2.5" aria-hidden="true">
-                          <span className={`transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-35'}`}>Live</span>
-                          <span className={`transition-opacity duration-200 ${visible ? 'opacity-35' : 'opacity-100'}`}>Hidden</span>
-                        </span>
-                        <span
-                          className={`absolute left-1 top-1 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform duration-200 ease-out ${
-                            visible ? 'translate-x-[102px]' : 'translate-x-0'
-                          }`}
-                          aria-hidden="true"
-                        >
-                          {saving ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-[#F20732]" />
-                          ) : visible ? (
-                            <Eye className="h-4 w-4 text-emerald-600" />
-                          ) : (
-                            <EyeOff className="h-4 w-4 text-[#F20732]" />
-                          )}
-                        </span>
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {saving ? 'Saving...' : visible ? 'Hide page' : 'Show page'}
                       </button>
                     </article>
                   );

@@ -13,6 +13,8 @@ const router = Router();
 router.use(authMiddleware, adminRoleMiddleware('noc'));
 
 // Infrastructures
+router.get('/infrastructures/dashboard', fabric.ixDashboard);
+router.get('/infrastructures/:id/live-stats', fabric.ixLiveStats);
 router.get('/infrastructures', fabric.listInfrastructures);
 router.post('/infrastructures', fabric.createInfrastructure);
 router.put('/infrastructures/:id', fabric.updateInfrastructure);

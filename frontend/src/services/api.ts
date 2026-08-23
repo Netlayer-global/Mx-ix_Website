@@ -1191,8 +1191,8 @@ export const adminCustomersApi = {
     apiCall<CustomerOrg>('/admin/customers', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<CustomerOrg>) =>
     apiCall<CustomerOrg>(`/admin/customers/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  setStatus: (id: string, status: OrgStatus) =>
-    apiCall<CustomerOrg>(`/admin/customers/${id}/status`, { method: 'POST', body: JSON.stringify({ status }) }),
+  setStatus: (id: string, status: OrgStatus, reason?: string) =>
+    apiCall<any>(`/admin/customers/${id}/status`, { method: 'POST', body: JSON.stringify({ status, reason }) }),
   remove: (id: string) => apiCall<void>(`/admin/customers/${id}`, { method: 'DELETE' }),
   // Ports
   createPort: (id: string, data: Partial<PortItem>) =>
@@ -1526,12 +1526,46 @@ export interface InfrastructureItem {
   nocPhone?: string;
   nocWebsite?: string;
   notes?: string;
+  portSpeeds?: number[];
   enabled: boolean;
   order: number;
   // enriched by the list endpoint
   switchCount?: number;
   vlanCount?: number;
   routeServerCount?: number;
+}
+
+// ── IX Dashboard (enriched infrastructure with aggregate stats) ──
+export interface IxDashboardItem extends InfrastructureItem {
+  facilityCount: number;
+  cabinetCount: number;
+  memberCount: number;
+  totalPorts: number;
+  assignedPorts: number;
+  totalCapacityMbps: number;
+}
+
+// ── IX Live Stats (real-time traffic + utilization for one IX) ──
+export interface IxLiveStatsData {
+  infrastructure: { id: string; name: string; shortname: string; asn: number };
+  range: string;
+  members: number;
+  totalPorts: number;
+  assignedPorts: number;
+  portUtilization: number;
+  totalCapacityGbps: number;
+  switchesMonitored: number;
+  switchesTotal: number;
+  traffic: {
+    currentInbound: number;
+    currentOutbound: number;
+    currentTotal: number;
+    peakInbound: number;
+    peakOutbound: number;
+    peakTotal: number;
+    series: { timestamps: number[]; inbound: number[]; outbound: number[] } | null;
+    source: 'zabbix' | 'unavailable';
+  };
 }
 
 // ── Facility (a data centre we have presence in) ──
@@ -1677,6 +1711,9 @@ export interface SwitchPortItem {
 
 export const adminFabricApi = {
   // Infrastructures
+  ixDashboard: () => apiCall<IxDashboardItem[]>('/admin/fabric/infrastructures/dashboard'),
+  ixLiveStats: (id: string, range?: string) =>
+    apiCall<IxLiveStatsData>(`/admin/fabric/infrastructures/${id}/live-stats${range ? `?range=${range}` : ''}`),
   listInfrastructures: () => apiCall<InfrastructureItem[]>('/admin/fabric/infrastructures'),
   createInfrastructure: (data: Partial<InfrastructureItem>) =>
     apiCall<InfrastructureItem>('/admin/fabric/infrastructures', { method: 'POST', body: JSON.stringify(data) }),
