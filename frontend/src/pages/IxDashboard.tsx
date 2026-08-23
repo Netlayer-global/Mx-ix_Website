@@ -59,21 +59,15 @@ interface Props {
 }
 
 type View = 'list' | 'detail';
-type DetailTab = 'overview' | 'livestats' | 'facilities' | 'switches' | 'patchpanels' | 'vlans' | 'peers' | 'bird' | 'routeservers' | 'corelinks' | 'maintenance' | 'peeringmatrix' | 'peeringdb';
+type DetailTab = 'overview' | 'infra' | 'peering' | 'routeservers' | 'monitoring' | 'connectivity' | 'peeringdb';
 
 const DETAIL_TABS: { id: DetailTab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
-  { id: 'livestats', label: 'Live Stats', icon: BarChart3 },
-  { id: 'facilities', label: 'Facilities & Racks', icon: Building2 },
-  { id: 'switches', label: 'Switches & Ports', icon: Router },
-  { id: 'patchpanels', label: 'Patch Panels', icon: Cable },
-  { id: 'vlans', label: 'VLANs & IPs', icon: Layers },
-  { id: 'peers', label: 'Peers', icon: Users },
-  { id: 'bird', label: 'Bird Config', icon: Cable },
+  { id: 'infra', label: 'Infrastructure', icon: Building2 },
+  { id: 'peering', label: 'Peering & VLANs', icon: Users },
   { id: 'routeservers', label: 'Route Servers', icon: Server },
-  { id: 'corelinks', label: 'Core Links', icon: Network },
-  { id: 'maintenance', label: 'Maintenance', icon: Activity },
-  { id: 'peeringmatrix', label: 'Peering Matrix', icon: BarChart3 },
+  { id: 'monitoring', label: 'Monitoring', icon: BarChart3 },
+  { id: 'connectivity', label: 'Connectivity', icon: Network },
   { id: 'peeringdb', label: 'PeeringDB', icon: Globe2 },
 ];
 
@@ -184,9 +178,9 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ==========================================================================
   // DETAIL VIEW
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ==========================================================================
   if (view === 'detail' && selectedIx) {
     const portUtil = selectedIx.totalPorts > 0
       ? Math.round((selectedIx.assignedPorts / selectedIx.totalPorts) * 100)
@@ -254,38 +248,20 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
             {detailTab === 'overview' && (
               <OverviewTab ix={selectedIx} facilities={facilities} devices={devices} vlans={vlans} routeServers={routeServers} portUtil={portUtil} onGoFabric={goFabric} onGoPeers={goPeers} />
             )}
-            {detailTab === 'livestats' && (
-              <LiveStatsTab ixId={selectedIx._id} />
+            {detailTab === 'infra' && (
+              <InfrastructureTab facilities={facilities} cabinets={cabinets} devices={devices} onGoFabric={goFabric} />
             )}
-            {detailTab === 'facilities' && (
-              <FacilitiesTab facilities={facilities} cabinets={cabinets} onGoFabric={goFabric} />
-            )}
-            {detailTab === 'switches' && (
-              <SwitchesTab devices={devices} onGoFabric={goFabric} />
-            )}
-            {detailTab === 'patchpanels' && (
-              <EmbeddedPanel title="Patch Panels" hint="Cross-connects, LOAs & fibre lifecycle for this IX." section="patchpanels" />
-            )}
-            {detailTab === 'vlans' && (
-              <VlansTab vlans={vlans} onGoVlans={goVlans} />
-            )}
-            {detailTab === 'peers' && (
-              <EmbeddedPanel title="Peers & Connections" hint="Member LAGs, BGP peers & provisioning for this IX." section="peers" />
-            )}
-            {detailTab === 'bird' && (
-              <EmbeddedPanel title="Bird Config" hint="Route-server config, deploy, IRRDB & rollback for this IX." section="bird" />
+            {detailTab === 'peering' && (
+              <PeeringTab vlans={vlans} onGoVlans={goVlans} onGoPeers={goPeers} />
             )}
             {detailTab === 'routeservers' && (
-              <RouteServersTab routeServers={routeServers} onGoBird={goBird} />
+              <RouteServersFullTab routeServers={routeServers} onGoBird={goBird} />
             )}
-            {detailTab === 'corelinks' && (
-              <EmbeddedPanel title="Core Links" hint="Inter-switch trunks & fabric capacity for this IX." section="corebundles" />
+            {detailTab === 'monitoring' && (
+              <MonitoringTab ixId={selectedIx._id} />
             )}
-            {detailTab === 'maintenance' && (
-              <EmbeddedPanel title="Maintenance Windows" hint="Planned maintenance windows & notifications." section="maintenance" />
-            )}
-            {detailTab === 'peeringmatrix' && (
-              <EmbeddedPanel title="Peering Matrix" hint="Member-to-member connectivity heatmap." section="peeringmatrix" />
+            {detailTab === 'connectivity' && (
+              <ConnectivityTab />
             )}
             {detailTab === 'peeringdb' && (
               <EmbeddedPanel title="PeeringDB" hint="ASN lookup, sync & participant reconciliation." section="peeringdb" />
@@ -325,9 +301,9 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ==========================================================================
   // LIST VIEW â€” IX Location Cards
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ==========================================================================
   return (
     <PanelShell
       title="IX Dashboard"
@@ -394,9 +370,9 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
   );
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 // IX Location Card
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 
 const IxCard: React.FC<{ ix: IxDashboardItem; onClick: () => void }> = ({ ix, onClick }) => {
   const portUtil = ix.totalPorts > 0 ? Math.round((ix.assignedPorts / ix.totalPorts) * 100) : 0;
@@ -455,9 +431,9 @@ const IxCard: React.FC<{ ix: IxDashboardItem; onClick: () => void }> = ({ ix, on
   );
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 // Create IX Form (inline)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 
 const CreateIxForm: React.FC<{ onClose: () => void; onCreated: () => void }> = ({ onClose, onCreated }) => {
   const [form, setForm] = useState({ name: '', shortname: '', asn: '', peeringLanName: '', mtu: '1500' });
@@ -524,9 +500,9 @@ const CreateIxForm: React.FC<{ onClose: () => void; onCreated: () => void }> = (
   );
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 // Edit IX Form (modal)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 
 const EditIxForm: React.FC<{ ix: IxDashboardItem; onClose: () => void; onSaved: (data: any) => void }> = ({ ix, onClose, onSaved }) => {
   const [form, setForm] = useState({
@@ -618,9 +594,9 @@ const EditIxForm: React.FC<{ ix: IxDashboardItem; onClose: () => void; onSaved: 
   );
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 // IX Setup Wizard â€” Create new IX (simple form + auto-scaffold)
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 
 const IxSetupWizardModal: React.FC<{ onClose: () => void; onDone: (ixId?: string) => void }> = ({ onClose, onDone }) => {
   const [busy, setBusy] = useState(false);
@@ -747,9 +723,9 @@ const IxSetupWizardModal: React.FC<{ onClose: () => void; onDone: (ixId?: string
   );
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 // Detail Tabs
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 
 const OverviewTab: React.FC<{
   ix: IxDashboardItem;
@@ -976,9 +952,187 @@ const RouteServersTab: React.FC<{ routeServers: any[]; onGoBird: () => void }> =
   </div>
 );
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// New Consolidated Tab Components
+
+const InfrastructureTab: React.FC<{
+  facilities: FacilityItem[];
+  cabinets: CabinetItem[];
+  devices: DeviceItem[];
+  onGoFabric: () => void;
+}> = ({ facilities, cabinets, devices, onGoFabric }) => {
+  const switches = devices.filter((d) => d.deviceType === 'switch' || d.deviceType === 'router');
+  return (
+    <div className="space-y-6">
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Data Centers ({facilities.length})</h3>
+          <Btn size="sm" icon={Plus} onClick={onGoFabric}>Add Facility</Btn>
+        </div>
+        {facilities.length === 0 ? (
+          <EmptyState icon={Building2} title="No facilities yet" hint="Add a data center to this IX." />
+        ) : (
+          <div className="grid md:grid-cols-2 gap-3">
+            {facilities.map((f) => (
+              <Card key={f._id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0"><Building2 className="w-4 h-4 text-gray-400" /></div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-sm truncate">{f.name}</h4>
+                    <p className="text-xs text-gray-500">{f.city}{f.country ? `, ${f.country}` : ''}{f.provider ? ` - ${f.provider}` : ''}</p>
+                    <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                      <span>{f.cabinetCount || 0} racks</span>
+                      <span>{f.deviceCount || 0} devices</span>
+                    </div>
+                  </div>
+                  <Badge tone={f.active ? 'green' : 'gray'}>{f.active ? 'Active' : 'Off'}</Badge>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+      {cabinets.length > 0 && (
+        <section>
+          <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400 mb-3">Racks ({cabinets.length})</h3>
+          <div className="grid md:grid-cols-3 gap-3">
+            {cabinets.map((c) => (
+              <Card key={c._id} className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-bold text-sm">{c.name}</h4>
+                  <Badge tone={c.active ? 'green' : 'gray'}>{c.uHeight}U</Badge>
+                </div>
+                {c.utilization != null && <UtilBar percent={c.utilization} label={`${c.usedUnits || 0}U / ${c.uHeight}U`} />}
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+      <section>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Switches ({switches.length})</h3>
+          <Btn size="sm" icon={Plus} onClick={onGoFabric}>Add Device</Btn>
+        </div>
+        {switches.length > 0 && (
+          <div className="space-y-2">
+            {switches.map((d) => (
+              <Card key={d._id} className="p-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-9 h-9 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0"><Router className="w-4 h-4 text-gray-400" /></div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm">{d.name}</h4>
+                      <Badge tone="gray">{d.deviceType}</Badge>
+                      <Badge tone={d.active ? 'green' : 'red'}>{d.active ? 'Active' : 'Off'}</Badge>
+                    </div>
+                    <p className="text-xs text-gray-500">{d.vendor} {d.hardwareModel || ''}</p>
+                  </div>
+                  {d.ports && <div className="text-xs text-gray-500"><span className="text-white font-bold">{d.ports.total}</span> ports <span className="text-green-400">{d.ports.free} free</span></div>}
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </section>
+      <Btn variant="ghost" icon={ArrowRight} onClick={onGoFabric}>Full Fabric Panel</Btn>
+    </div>
+  );
+};
+
+const PeeringTab: React.FC<{ vlans: VlanItem[]; onGoVlans: () => void; onGoPeers: () => void }> = ({ vlans, onGoVlans, onGoPeers }) => (
+  <div className="space-y-6">
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Peering VLANs ({vlans.length})</h3>
+        <Btn size="sm" icon={Plus} onClick={onGoVlans}>Add VLAN</Btn>
+      </div>
+      {vlans.length === 0 ? (
+        <EmptyState icon={Layers} title="No VLANs" hint="Create a peering LAN with IP pools." />
+      ) : (
+        <div className="space-y-2">
+          {vlans.map((v: any) => (
+            <Card key={v._id} className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-sm">{v.name}</h4>
+                  <p className="text-xs text-gray-500 font-mono">Tag {v.tag || v.number} - {v.ipv4Subnet || v.ipv4Prefix || 'no IPv4'} - {v.ipv6Subnet || v.ipv6Prefix || 'no IPv6'}</p>
+                </div>
+                <Badge tone="green">Active</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Members & Connections</h3>
+        <Btn size="sm" icon={Plus} onClick={onGoPeers}>Provision</Btn>
+      </div>
+      <EmbeddedPanel title="Peers" hint="Member connections" section="peers" />
+    </section>
+  </div>
+);
+
+const RouteServersFullTab: React.FC<{ routeServers: any[]; onGoBird: () => void }> = ({ routeServers, onGoBird }) => (
+  <div className="space-y-6">
+    <section>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Route Servers ({routeServers.length})</h3>
+        <Btn size="sm" icon={Plus} onClick={onGoBird}>Register RS</Btn>
+      </div>
+      {routeServers.length === 0 ? (
+        <EmptyState icon={Server} title="No route servers" hint="Register BIRD instances." />
+      ) : (
+        <div className="grid md:grid-cols-2 gap-3">
+          {routeServers.map((rs: any) => (
+            <Card key={rs._id} className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold text-sm">{rs.name}</h4>
+                <Badge tone={rs.enabled !== false ? 'green' : 'gray'}>{rs.enabled !== false ? 'Online' : 'Offline'}</Badge>
+              </div>
+              <div className="text-xs text-gray-500">AS{rs.asn} - {rs.family || 'dual'}{rs.ipv4 ? ` - ${rs.ipv4}` : ''}</div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </section>
+    <section>
+      <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400 mb-3">Bird Configuration</h3>
+      <EmbeddedPanel title="Bird" hint="Config and deploy" section="bird" />
+    </section>
+  </div>
+);
+
+const MonitoringTab: React.FC<{ ixId: string }> = ({ ixId }) => (
+  <div className="space-y-6">
+    <LiveStatsTab ixId={ixId} />
+    <section>
+      <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400 mb-3">Maintenance Windows</h3>
+      <EmbeddedPanel title="Maintenance" hint="Planned maintenance" section="maintenance" />
+    </section>
+  </div>
+);
+
+const ConnectivityTab: React.FC = () => (
+  <div className="space-y-6">
+    <section>
+      <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400 mb-3">Core Links</h3>
+      <EmbeddedPanel title="Core Links" hint="Inter-switch trunks" section="corebundles" />
+    </section>
+    <section>
+      <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400 mb-3">Patch Panels</h3>
+      <EmbeddedPanel title="Patch Panels" hint="Cross-connects" section="patchpanels" />
+    </section>
+    <section>
+      <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400 mb-3">Peering Matrix</h3>
+      <EmbeddedPanel title="Peering Matrix" hint="Connectivity heatmap" section="peeringmatrix" />
+    </section>
+  </div>
+);
+
+// ==============================================================================
 // Embedded Panel â€” loads an existing admin panel inline within IX Detail
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 
 const LazyPanels: Record<string, React.LazyExoticComponent<React.FC<any>>> = {
   patchpanels: lazy(() => import('./PatchPanelsAdminPanel')),
@@ -1006,9 +1160,9 @@ const EmbeddedPanel: React.FC<{ title: string; hint: string; section: string }> 
   );
 };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 // Live Stats Tab
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ==============================================================================
 
 type StatsRange = '1h' | '24h' | '7d' | '30d';
 
