@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, lazy, Suspense } from 'react';
 import {
   Building2,
   Network,
@@ -23,13 +23,17 @@ import {
   adminDocumentsApi,
   adminOrdersApi,
   adminPeersApi,
+  adminFabricApi,
   CustomerOrg,
   CustomerUser,
   PortItem,
   OrderItem,
   ConnectionItem,
   MemberContactItem,
+  RackElevation,
 } from '../services/api';
+
+const Rack3D = lazy(() => import('../components/Rack3D'));
 
 interface Props {
   embedded?: boolean;
@@ -273,8 +277,24 @@ const OverviewTab: React.FC<{
   );
 };
 
-// ── Connections Tab with Physical Path ──
-const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[] }> = ({ connections, ports }) => (
+// ── Connections Tab with Physical Path + 3D Rack ──
+const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[] }> = ({ connections, ports }) => {
+  const [rackView, setRackView] = useState<string | null>(null); // cabinetId being viewed
+  const [elevation, setElevation] = useState<RackElevation | null>(null);
+  const [loadingRack, setLoadingRack] = useState(false);
+
+  const toggleRack = async (cabinetId: string | undefined) => {
+    if (!cabinetId) return;
+    if (rackView === cabinetId) { setRackView(null); setElevation(null); return; }
+    setRackView(cabinetId);
+    setLoadingRack(true);
+    const res = await adminFabricApi.elevation(cabinetId);
+    if (res.success && res.data) setElevation(res.data);
+    else setElevation(null);
+    setLoadingRack(false);
+  };
+
+  return (
   <div className="space-y-4">
     {connections.length ? connections.map((c) => (
       <div key={c._id} className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
@@ -321,8 +341,38 @@ const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[
                 <div><span className="text-gray-500 block">Port</span><span className="font-mono">{p.portName || '—'}</span></div>
                 <div><span className="text-gray-500 block">Location</span><span>{p.facilityName || '—'}</span></div>
               </div>
+
+              {/* 3D Rack toggle */}
+              {p.cabinetId && (
+                <button
+                  onClick={() => toggleRack(p.cabinetId)}
+                  className="mt-3 flex items-center gap-2 text-xs font-mono text-[#F20732] hover:underline"
+                >
+                  {rackView === p.cabinetId ? '▼ Hide 3D rack' : '▶ View rack in 3D'}
+                </button>
+              )}
             </div>
           ))}
+
+          {/* Inline 3D Rack View */}
+          {rackView && elevation && (
+            <div className="mt-2 rounded-lg overflow-hidden border border-gray-700">
+              <div className="px-4 py-2 bg-gray-900 border-b border-gray-700 flex items-center justify-between">
+                <span className="text-xs font-mono text-gray-400">
+                  🏗️ {elevation.cabinet.name} — {elevation.usedUnits}/{elevation.cabinet.uHeight}U occupied
+                </span>
+                <button onClick={() => { setRackView(null); setElevation(null); }} className="text-xs text-gray-500 hover:text-white">Close</button>
+              </div>
+              <Suspense fallback={<div className="h-[400px] bg-gray-950 flex items-center justify-center"><div className="w-6 h-6 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin" /></div>}>
+                <Rack3D elevation={elevation} height={400} />
+              </Suspense>
+            </div>
+          )}
+          {rackView && loadingRack && (
+            <div className="h-24 flex items-center justify-center">
+              <div className="w-5 h-5 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
 
           {/* Peering / IP info */}
           {(c.peers || []).map((peer: any, idx: number) => (
@@ -370,7 +420,8 @@ const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[
       </div>
     )}
   </div>
-);
+  );
+};
 
 const PathChip: React.FC<{ icon: string; label: string; value: string }> = ({ icon, label, value }) => (
   <div className="flex-shrink-0 bg-gray-800 border border-gray-600 rounded px-3 py-2 min-w-[100px]">

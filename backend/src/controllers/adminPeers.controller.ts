@@ -235,6 +235,7 @@ export const listConnections = async (req: Request, res: Response): Promise<void
             portName: p.switchPort?.name || '',
             switchName: p.switchPort?.switch?.name || '',
             cabinetName: p.switchPort?.switch?.cabinet?.name || '',
+            cabinetId: p.switchPort?.switch?.cabinet?._id ? String(p.switchPort.switch.cabinet._id) : '',
             facilityName: p.switchPort?.switch?.facility?.name || '',
             xconnectRef: p.xconnectRef,
           })),
