@@ -36,6 +36,8 @@ import {
 interface Props {
   embedded?: boolean;
   onBack?: () => void;
+  /** Open the 360° customer view for a specific org. */
+  onSelectCustomer?: (orgId: string) => void;
 }
 
 const TYPES = ['ISP', 'Content', 'Cloud', 'CDN', 'Enterprise', 'Academic', 'Other'];
@@ -77,7 +79,7 @@ const emptyForm = {
   userPassword: '',
 };
 
-const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
+const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack, onSelectCustomer }) => {
   const [customers, setCustomers] = useState<CustomerOrg[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | OrgStatus>('all');
@@ -309,7 +311,7 @@ const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
         <section className="space-y-2">
           {filtered.map((c) => (
             <div key={c._id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center gap-4">
-              <button onClick={() => setSelectedId(c._id)} className="flex-1 min-w-0 text-left">
+              <button onClick={() => onSelectCustomer ? onSelectCustomer(c._id) : setSelectedId(c._id)} className="flex-1 min-w-0 text-left">
                 <div className="flex items-center gap-2">
                   <span className="font-bold truncate">{c.name}</span>
                   {statusBadge(c.status)}

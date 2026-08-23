@@ -46,6 +46,7 @@ const IntegrationsAdminPanel = lazy(() => import('./IntegrationsAdminPanel'));
 const StatusAdminPanel = lazy(() => import('./StatusAdminPanel'));
 const MembersAdminPanel = lazy(() => import('./MembersAdminPanel'));
 const CustomersAdminPanel = lazy(() => import('./CustomersAdminPanel'));
+const Customer360Panel = lazy(() => import('./Customer360Panel'));
 const OrdersAdminPanel = lazy(() => import('./OrdersAdminPanel'));
 const SupportAdminPanel = lazy(() => import('./SupportAdminPanel'));
 const AdminUsersPanel = lazy(() => import('./AdminUsersPanel'));
@@ -163,6 +164,7 @@ const AdminDashboard: React.FC = () => {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [provisionContext, setProvisionContext] = useState<any>(null);
+  const [customer360Id, setCustomer360Id] = useState<string | null>(null);
 
   const [stats, setStats] = useState({ services: 0, locations: 0, asns: 0, sites: 0 });
   const [loadingStats, setLoadingStats] = useState(true);
@@ -331,7 +333,9 @@ const AdminDashboard: React.FC = () => {
       case 'integrations': return <IntegrationsAdminPanel embedded />;
       case 'status': return <StatusAdminPanel embedded />;
       case 'members': return <MembersAdminPanel embedded />;
-      case 'customers': return <CustomersAdminPanel embedded />;
+      case 'customers': return customer360Id
+        ? <Customer360Panel embedded orgId={customer360Id} onBack={() => setCustomer360Id(null)} onProvision={(id, name) => { setProvisionContext({ orgId: id, orgName: name }); go('peers' as AdminSection); }} />
+        : <CustomersAdminPanel embedded onSelectCustomer={(id: string) => setCustomer360Id(id)} />;
       case 'orders': return <OrdersAdminPanel embedded onNavigateSection={(section, ctx) => { setProvisionContext(ctx); go(section as AdminSection); }} />;
       case 'support': return <SupportAdminPanel embedded />;
       case 'adminusers': return <AdminUsersPanel embedded />;
