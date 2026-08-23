@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authMiddleware, adminRoleMiddleware } from '../middleware';
-import { p95BillingRun } from '../controllers/adminBilling.controller';
+import { p95BillingRun, customerInvoices } from '../controllers/adminBilling.controller';
 import { slaReport } from '../controllers/adminSlaReport.controller';
 
 /** Billing utilities — 95th-percentile reporting, SLA reports and Zoho export. */
@@ -10,5 +10,6 @@ router.use(authMiddleware, adminRoleMiddleware('noc', 'billing'));
 
 router.get('/p95-run', p95BillingRun);
 router.get('/sla-report', slaReport);
+router.get('/customer/:orgId/invoices', customerInvoices);
 
 export default router;

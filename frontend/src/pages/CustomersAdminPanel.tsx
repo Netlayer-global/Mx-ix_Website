@@ -85,6 +85,7 @@ const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack, onSelectCustom
   const [customers, setCustomers] = useState<CustomerOrg[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | OrgStatus>('all');
+  const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ ...emptyForm });
   const [saving, setSaving] = useState(false);
@@ -190,7 +191,12 @@ const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack, onSelectCustom
     );
   }
 
-  const filtered = filter === 'all' ? customers : customers.filter((c) => c.status === filter);
+  const filtered = (filter === 'all' ? customers : customers.filter((c) => c.status === filter))
+    .filter((c) => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return c.name.toLowerCase().includes(q) || String(c.asn || '').includes(q) || (c.nocEmail || '').toLowerCase().includes(q);
+    });
   const pendingCount = customers.filter((c) => c.status === 'pending').length;
 
   return (
@@ -232,6 +238,30 @@ const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack, onSelectCustom
         {syncMsg && (
           <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-300">{syncMsg}</div>
         )}
+
+        {/* Quick stats */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold">{customers.length}</div>
+            <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Total</div>
+          </div>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-green-400">{customers.filter(c => c.status === 'active').length}</div>
+            <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Active</div>
+          </div>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-amber-400">{pendingCount}</div>
+            <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Pending</div>
+          </div>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold text-red-400">{customers.filter(c => c.status === 'suspended').length}</div>
+            <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Suspended</div>
+          </div>
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+            <div className="text-xl font-bold">{customers.reduce((s, c) => s + (c.portCount || 0), 0)}</div>
+            <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Total Ports</div>
+          </div>
+        </div>
         {/* Create form */}
         {showCreate && (
           <section className="bg-gray-800 border border-gray-700 rounded-lg p-5">
@@ -291,22 +321,31 @@ const CustomersAdminPanel: React.FC<Props> = ({ embedded, onBack, onSelectCustom
           </section>
         )}
 
-        {/* Filters */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {(['all', 'pending', 'active', 'suspended'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded text-sm font-mono uppercase tracking-wider transition-colors ${
-                filter === f ? 'bg-[#F20732] text-white' : 'bg-gray-800 text-gray-500 hover:text-white'
-              }`}
-            >
-              {f}
-              {f === 'pending' && pendingCount > 0 && (
-                <span className="ml-2 bg-amber-500 text-gray-900 rounded-full px-1.5 text-[10px]">{pendingCount}</span>
-              )}
-            </button>
-          ))}
+        {/* Filters + Search */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            {(['all', 'pending', 'active', 'suspended'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 rounded text-sm font-mono uppercase tracking-wider transition-colors cursor-pointer ${
+                  filter === f ? 'bg-[#F20732] text-white' : 'bg-gray-800 text-gray-500 hover:text-white'
+                }`}
+              >
+                {f}
+                {f === 'pending' && pendingCount > 0 && (
+                  <span className="ml-2 bg-amber-500 text-gray-900 rounded-full px-1.5 text-[10px]">{pendingCount}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name, ASN, or email..."
+            className="flex-1 min-w-[200px] bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-[#F20732] transition-colors"
+          />
+          <span className="text-xs text-gray-500 font-mono">{filtered.length} result{filtered.length === 1 ? '' : 's'}</span>
         </div>
 
         {/* List */}

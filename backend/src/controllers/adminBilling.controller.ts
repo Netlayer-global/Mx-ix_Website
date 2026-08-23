@@ -184,4 +184,32 @@ export const p95BillingRun = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-export default { p95BillingRun };
+/**
+ * GET /api/admin/billing/customer/:orgId/invoices
+ * Fetch Zoho invoices for a specific customer (admin view).
+ */
+export const customerInvoices = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const org = await Organization.findById(req.params.orgId).select('zohoContactId zohoProfileKey name').lean();
+    if (!org) {
+      res.status(404).json({ success: false, error: 'Customer not found.' });
+      return;
+    }
+    if (!org.zohoContactId) {
+      res.json({ success: true, data: { linked: false, invoices: [] } });
+      return;
+    }
+    const { listInvoices } = await import('../services/zohoBooks.service');
+    const result = await listInvoices(org.zohoContactId, (org as any).zohoProfileKey || undefined);
+    if (!result.ok) {
+      res.json({ success: false, error: result.error });
+      return;
+    }
+    res.json({ success: true, data: { linked: true, invoices: result.invoices || [] } });
+  } catch (error) {
+    console.error('Customer invoices error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load invoices.' });
+  }
+};
+
+export default { p95BillingRun, customerInvoices };

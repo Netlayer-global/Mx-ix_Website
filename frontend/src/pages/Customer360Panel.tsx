@@ -26,6 +26,7 @@ import {
   adminOrdersApi,
   adminPeersApi,
   adminFabricApi,
+  adminBillingApi,
   CustomerOrg,
   CustomerUser,
   PortItem,
@@ -44,11 +45,12 @@ interface Props {
   onProvision?: (orgId: string, orgName: string) => void;
 }
 
-type Tab = 'overview' | 'connections' | 'contacts' | 'orders' | 'tickets' | 'documents' | 'traffic';
+type Tab = 'overview' | 'connections' | 'contacts' | 'orders' | 'tickets' | 'documents' | 'billing';
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Building2 },
   { id: 'connections', label: 'Connections', icon: Network },
+  { id: 'billing', label: 'Billing', icon: Receipt },
   { id: 'contacts', label: 'Contacts', icon: Phone },
   { id: 'orders', label: 'Orders', icon: ShoppingCart },
   { id: 'tickets', label: 'Tickets', icon: LifeBuoy },
@@ -266,6 +268,7 @@ const Customer360Panel: React.FC<Props> = ({ embedded, orgId, onBack, onProvisio
         {tab === 'orders' && <OrdersTab orders={orders} />}
         {tab === 'tickets' && <TicketsTab orgName={org.name} />}
         {tab === 'documents' && <DocumentsTab documents={documents} />}
+        {tab === 'billing' && <BillingTab orgId={orgId} />}
       </main>
     </div>
   );
@@ -604,5 +607,87 @@ const DlRow: React.FC<{ label: string; value: string; link?: boolean }> = ({ lab
     </dd>
   </div>
 );
+
+// ── Billing Tab ──
+const BillingTab: React.FC<{ orgId: string }> = ({ orgId }) => {
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [linked, setLinked] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const res = await adminBillingApi.customerInvoices(orgId);
+      if (res.success && res.data) {
+        setLinked(res.data.linked);
+        setInvoices(res.data.invoices || []);
+      }
+      setLoading(false);
+    })();
+  }, [orgId]);
+
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#F20732]" /></div>;
+
+  if (!linked) {
+    return (
+      <div className="text-center py-12">
+        <Receipt className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+        <p className="text-gray-500 text-sm">No Zoho Books contact linked to this customer.</p>
+        <p className="text-gray-600 text-xs mt-1">Link a Zoho contact ID in the customer settings to see invoices here.</p>
+      </div>
+    );
+  }
+
+  if (!invoices.length) {
+    return (
+      <div className="text-center py-12">
+        <Receipt className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+        <p className="text-gray-500 text-sm">No invoices found in Zoho Books.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-4 gap-3 mb-4">
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold">{invoices.length}</div>
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Total</div>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold text-green-400">{invoices.filter((i: any) => i.status === 'paid').length}</div>
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Paid</div>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold text-red-400">{invoices.filter((i: any) => i.status === 'overdue').length}</div>
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Overdue</div>
+        </div>
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 text-center">
+          <div className="text-xl font-bold text-amber-400">{invoices.filter((i: any) => i.status === 'sent' || i.status === 'draft').length}</div>
+          <div className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">Pending</div>
+        </div>
+      </div>
+      {invoices.map((inv: any) => {
+        const statusColor = inv.status === 'paid' ? 'text-green-400 border-green-500/30 bg-green-500/10'
+          : inv.status === 'overdue' ? 'text-red-400 border-red-500/30 bg-red-500/10'
+          : 'text-amber-400 border-amber-500/30 bg-amber-500/10';
+        return (
+          <div key={inv.invoice_id || inv.invoice_number} className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center justify-between">
+            <div>
+              <span className="font-bold text-sm">{inv.invoice_number}</span>
+              <span className="text-xs text-gray-500 ml-3">{inv.date}</span>
+              {inv.due_date && <span className="text-xs text-gray-600 ml-2">Due: {inv.due_date}</span>}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-sm">{inv.currency_symbol || '₹'}{inv.total}</span>
+              <span className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded ${statusColor}`}>
+                {inv.status}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
 export default Customer360Panel;

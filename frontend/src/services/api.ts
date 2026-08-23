@@ -1499,6 +1499,11 @@ export const adminSystemApi = {
   noc: () => apiCall<NocDashboard>('/admin/system/noc'),
 };
 
+export const adminBillingApi = {
+  customerInvoices: (orgId: string) =>
+    apiCall<{ linked: boolean; invoices: any[] }>(`/admin/billing/customer/${orgId}/invoices`),
+};
+
 // ============================================================================
 // IXP FABRIC — native peering infrastructure management
 //
