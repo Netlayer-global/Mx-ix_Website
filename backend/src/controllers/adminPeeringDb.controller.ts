@@ -351,6 +351,7 @@ export const searchFacilities = async (req: Request, res: Response): Promise<voi
       (result.data || []).map((f) => ({
         id: f.id,
         name: f.name,
+        address1: f.address1 || '',
         city: f.city,
         country: f.country,
         clli: f.clli,
@@ -358,6 +359,7 @@ export const searchFacilities = async (req: Request, res: Response): Promise<voi
         latitude: f.latitude,
         longitude: f.longitude,
         netCount: f.net_count,
+        org_id: f.org_id,
       }))
     );
   } catch (err: any) {

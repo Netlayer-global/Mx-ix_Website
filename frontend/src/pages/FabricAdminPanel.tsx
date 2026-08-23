@@ -751,14 +751,27 @@ const FacilityForm: React.FC<{
   const [facSearch, setFacSearch] = useState('');
   const [facResults, setFacResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const searchTimer = React.useRef<any>(null);
 
-  const search = async () => {
-    if (!facSearch.trim()) return;
+  const search = async (q?: string) => {
+    const query = (q ?? facSearch).trim();
+    if (!query || query.length < 2) { setFacResults([]); return; }
     setSearching(true);
-    const res = await adminPeeringDbApi.searchFacilities(facSearch.trim());
+    const res = await adminPeeringDbApi.searchFacilities(query);
     setSearching(false);
     if (res.success && res.data) setFacResults(res.data);
     else setErr(res.error || 'PeeringDB search failed.');
+  };
+
+  // Debounced auto-search as user types
+  const onSearchChange = (val: string) => {
+    setFacSearch(val);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    if (val.trim().length >= 2) {
+      searchTimer.current = setTimeout(() => search(val), 400);
+    } else {
+      setFacResults([]);
+    }
   };
 
   const save = async () => {
@@ -808,8 +821,8 @@ const FacilityForm: React.FC<{
         <input
           className={field}
           value={facSearch}
-          onChange={(e) => setFacSearch(e.target.value)}
-          placeholder="Search PeeringDB facilities to autofill…"
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder="Search PeeringDB facilities (start typing…)"
           onKeyDown={(e) => e.key === 'Enter' && search()}
         />
         <Btn icon={Search} busy={searching} onClick={search}>
@@ -824,19 +837,25 @@ const FacilityForm: React.FC<{
               onClick={() => {
                 setForm({
                   ...form,
-                  name: form.name || f.name,
+                  name: f.name || form.name,
+                  shortname: form.shortname || (f.name || '').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').slice(0, 20),
+                  provider: f.org_name || f.provider || form.provider,
+                  address1: f.address1 || form.address1,
                   city: f.city || form.city,
                   country: f.country || form.country,
                   peeringdbFacId: String(f.id),
+                  supportEmail: f.tech_email || f.sales_email || form.supportEmail,
+                  supportPhone: f.tech_phone || f.sales_phone || form.supportPhone,
                 });
                 setFacResults([]);
               }}
-              className="w-full text-left bg-gray-900 border border-gray-700 rounded px-3 py-2 hover:border-gray-500"
+              className="w-full text-left bg-gray-900 border border-gray-700 rounded px-3 py-2 hover:border-[#F20732] transition-colors group"
             >
-              <p className="text-sm">{f.name}</p>
-              <p className="font-mono text-[11px] text-gray-500">
-                fac #{f.id} · {f.city || '—'}, {f.country || '—'} · {f.netCount ?? 0} networks
+              <p className="text-sm font-bold group-hover:text-[#F20732] transition-colors">{f.name}</p>
+              <p className="font-mono text-[11px] text-gray-500 mt-0.5">
+                {f.org_name ? `${f.org_name} · ` : ''}fac #{f.id} · {f.city || '—'}, {f.country || '—'} · {f.netCount ?? f.net_count ?? 0} networks
               </p>
+              {f.address1 && <p className="text-[11px] text-gray-600 mt-0.5">{f.address1}</p>}
             </button>
           ))}
         </div>
