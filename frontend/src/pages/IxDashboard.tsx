@@ -960,80 +960,169 @@ const InfrastructureTab: React.FC<{
   devices: DeviceItem[];
   onGoFabric: () => void;
 }> = ({ facilities, cabinets, devices, onGoFabric }) => {
-  const switches = devices.filter((d) => d.deviceType === 'switch' || d.deviceType === 'router');
+  // Drill-down state: facilities → racks → device/ports
+  const [selectedFacility, setSelectedFacility] = useState<FacilityItem | null>(null);
+  const [selectedCabinet, setSelectedCabinet] = useState<CabinetItem | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<DeviceItem | null>(null);
+  const [ports, setPorts] = useState<any[]>([]);
+  const [loadingPorts, setLoadingPorts] = useState(false);
+
+  const facilityCabinets = selectedFacility ? cabinets.filter((c) => String(c.facility) === selectedFacility._id) : [];
+  const cabinetDevices = selectedCabinet ? devices.filter((d) => String((d as any).cabinet?._id || (d as any).cabinet) === selectedCabinet._id) : [];
+
+  const openDevice = async (d: DeviceItem) => {
+    setSelectedDevice(d);
+    setLoadingPorts(true);
+    const res = await adminFabricApi.getDevice(d._id);
+    if (res.success && res.data) setPorts(res.data.ports || []);
+    setLoadingPorts(false);
+  };
+
+  // Breadcrumb
+  const crumbs: Array<{ label: string; onClick?: () => void }> = [
+    { label: 'Data Centers', onClick: () => { setSelectedFacility(null); setSelectedCabinet(null); setSelectedDevice(null); } },
+  ];
+  if (selectedFacility) crumbs.push({ label: selectedFacility.name, onClick: () => { setSelectedCabinet(null); setSelectedDevice(null); } });
+  if (selectedCabinet) crumbs.push({ label: selectedCabinet.name, onClick: () => setSelectedDevice(null) });
+  if (selectedDevice) crumbs.push({ label: selectedDevice.name });
+
   return (
-    <div className="space-y-6">
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Data Centers ({facilities.length})</h3>
-          <Btn size="sm" icon={Plus} onClick={onGoFabric}>Add Facility</Btn>
-        </div>
-        {facilities.length === 0 ? (
-          <EmptyState icon={Building2} title="No facilities yet" hint="Add a data center to this IX." />
-        ) : (
-          <div className="grid md:grid-cols-2 gap-3">
-            {facilities.map((f) => (
-              <Card key={f._id} className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0"><Building2 className="w-4 h-4 text-gray-400" /></div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-sm truncate">{f.name}</h4>
-                    <p className="text-xs text-gray-500">{f.city}{f.country ? `, ${f.country}` : ''}{f.provider ? ` - ${f.provider}` : ''}</p>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                      <span>{f.cabinetCount || 0} racks</span>
-                      <span>{f.deviceCount || 0} devices</span>
+    <div className="space-y-4">
+      {/* Breadcrumb */}
+      <Breadcrumb items={crumbs} />
+
+      {/* Level 1: Facilities */}
+      {!selectedFacility && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-sm text-gray-300">{facilities.length} Data Center{facilities.length !== 1 ? 's' : ''}</h3>
+            <Btn size="sm" icon={Plus} onClick={onGoFabric}>Add Facility</Btn>
+          </div>
+          {facilities.length === 0 ? (
+            <EmptyState icon={Building2} title="No data centers" hint="Add a facility to start building this IX's physical infrastructure." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Add Data Center</Btn>} />
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
+              {facilities.map((f) => (
+                <button key={f._id} onClick={() => setSelectedFacility(f)} className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-left hover:border-gray-500 transition-all group cursor-pointer w-full">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-[#F20732]/10 border border-[#F20732]/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Building2 className="w-5 h-5 text-[#F20732]" />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-sm group-hover:text-[#F20732] transition-colors">{f.name}</h4>
+                      <p className="text-xs text-gray-500">{f.city}{f.country ? `, ${f.country}` : ''}{f.provider ? ` - ${f.provider}` : ''}</p>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        <span className="flex items-center gap-1"><Server className="w-3 h-3" />{f.cabinetCount || 0} racks</span>
+                        <span className="flex items-center gap-1"><Router className="w-3 h-3" />{f.deviceCount || 0} devices</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#F20732] mt-1" />
                   </div>
-                  <Badge tone={f.active ? 'green' : 'gray'}>{f.active ? 'Active' : 'Off'}</Badge>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-      {cabinets.length > 0 && (
-        <section>
-          <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400 mb-3">Racks ({cabinets.length})</h3>
-          <div className="grid md:grid-cols-3 gap-3">
-            {cabinets.map((c) => (
-              <Card key={c._id} className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-sm">{c.name}</h4>
-                  <Badge tone={c.active ? 'green' : 'gray'}>{c.uHeight}U</Badge>
-                </div>
-                {c.utilization != null && <UtilBar percent={c.utilization} label={`${c.usedUnits || 0}U / ${c.uHeight}U`} />}
-              </Card>
-            ))}
-          </div>
-        </section>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-sm uppercase tracking-wider text-gray-400">Switches ({switches.length})</h3>
-          <Btn size="sm" icon={Plus} onClick={onGoFabric}>Add Device</Btn>
-        </div>
-        {switches.length > 0 && (
-          <div className="space-y-2">
-            {switches.map((d) => (
-              <Card key={d._id} className="p-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-9 h-9 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0"><Router className="w-4 h-4 text-gray-400" /></div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-sm">{d.name}</h4>
-                      <Badge tone="gray">{d.deviceType}</Badge>
-                      <Badge tone={d.active ? 'green' : 'red'}>{d.active ? 'Active' : 'Off'}</Badge>
-                    </div>
-                    <p className="text-xs text-gray-500">{d.vendor} {d.hardwareModel || ''}</p>
-                  </div>
-                  {d.ports && <div className="text-xs text-gray-500"><span className="text-white font-bold">{d.ports.total}</span> ports <span className="text-green-400">{d.ports.free} free</span></div>}
-                </div>
-              </Card>
-            ))}
+
+      {/* Level 2: Racks in selected facility */}
+      {selectedFacility && !selectedCabinet && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-sm text-gray-300">{facilityCabinets.length} Rack{facilityCabinets.length !== 1 ? 's' : ''} in {selectedFacility.name}</h3>
+            <Btn size="sm" icon={Plus} onClick={onGoFabric}>Add Rack</Btn>
           </div>
-        )}
-      </section>
-      <Btn variant="ghost" icon={ArrowRight} onClick={onGoFabric}>Full Fabric Panel</Btn>
+          {facilityCabinets.length === 0 ? (
+            <EmptyState icon={Server} title="No racks" hint="Create a rack in this facility." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Add Rack</Btn>} />
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {facilityCabinets.map((c) => (
+                <button key={c._id} onClick={() => setSelectedCabinet(c)} className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-left hover:border-gray-500 transition-all group cursor-pointer w-full">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-bold text-sm group-hover:text-[#F20732] transition-colors">{c.name}</h4>
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#F20732]" />
+                  </div>
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div>{c.uHeight}U rack</div>
+                    {c.utilization != null && <UtilBar percent={c.utilization} label={`${c.usedUnits || 0}U used / ${c.freeUnits || 0}U free`} />}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Level 3: Devices in selected rack */}
+      {selectedCabinet && !selectedDevice && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-sm text-gray-300">Devices in {selectedCabinet.name} ({cabinetDevices.length})</h3>
+            <Btn size="sm" icon={Plus} onClick={onGoFabric}>Mount Device</Btn>
+          </div>
+          {cabinetDevices.length === 0 ? (
+            <EmptyState icon={Router} title="Rack is empty" hint="Mount a switch, router or patch panel." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Add Device</Btn>} />
+          ) : (
+            <div className="space-y-2">
+              {cabinetDevices.map((d) => (
+                <button key={d._id} onClick={() => openDevice(d)} className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-left hover:border-gray-500 transition-all group cursor-pointer w-full">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Router className="w-5 h-5 text-gray-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-sm group-hover:text-[#F20732] transition-colors">{d.name}</h4>
+                        <Badge tone="gray">{d.deviceType}</Badge>
+                        <Badge tone={d.active ? 'green' : 'red'}>{d.active ? 'Active' : 'Off'}</Badge>
+                      </div>
+                      <p className="text-xs text-gray-500">{d.vendor} {d.hardwareModel || ''} {d.hostname ? `- ${d.hostname}` : ''}</p>
+                    </div>
+                    <div className="text-right">
+                      {d.ports && <p className="text-xs"><span className="text-white font-bold">{d.ports.total}</span> <span className="text-gray-500">ports</span> <span className="text-green-400 ml-1">{d.ports.free} free</span></p>}
+                      <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#F20732] ml-auto mt-1" />
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Level 4: Ports on selected device */}
+      {selectedDevice && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-sm text-gray-300">{selectedDevice.name} - Ports ({ports.length})</h3>
+            <Btn size="sm" icon={Plus} onClick={onGoFabric}>Generate Ports</Btn>
+          </div>
+          {loadingPorts ? <Spinner /> : ports.length === 0 ? (
+            <EmptyState icon={Network} title="No ports" hint="Generate ports using a naming pattern." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Generate Ports</Btn>} />
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              {ports.map((p: any) => {
+                const color = p.status === 'assigned' ? 'border-green-500/50 bg-green-500/5' : p.status === 'free' ? 'border-gray-600 bg-gray-800' : 'border-amber-500/50 bg-amber-500/5';
+                return (
+                  <div key={p._id} className={`border rounded-lg p-2 text-center ${color}`}>
+                    <p className="text-xs font-mono font-bold truncate" title={p.name}>{p.name}</p>
+                    <p className="text-[9px] uppercase text-gray-500 mt-0.5">{p.status}</p>
+                    {p.speed && <p className="text-[9px] text-gray-600">{p.speed >= 100000 ? `${p.speed / 1000}G` : p.speed >= 1000 ? `${p.speed / 1000}G` : `${p.speed}M`}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {/* Port legend */}
+          {ports.length > 0 && (
+            <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-500">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-gray-600 bg-gray-800" /> Free</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-green-500/50 bg-green-500/10" /> Assigned</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-amber-500/50 bg-amber-500/10" /> Reserved/Other</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
