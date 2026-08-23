@@ -570,12 +570,17 @@ export const getDevice = async (req: Request, res: Response): Promise<void> => {
     const [memberUse, coreUse] = await Promise.all([
       PhysicalInterface.find({ switchPort: { $in: portIds } })
         .select('switchPort virtualInterface status speed')
+        .populate({ path: 'virtualInterface', select: 'organization name', populate: { path: 'organization', select: 'name asn' } })
         .lean(),
       CoreLink.find({ $or: [{ switchPortA: { $in: portIds } }, { switchPortB: { $in: portIds } }] })
         .select('switchPortA switchPortB coreBundle')
         .lean(),
     ]);
-    const memberByPort = new Map(memberUse.map((m: any) => [String(m.switchPort), m]));
+    const memberByPort = new Map(memberUse.map((m: any) => {
+      const vi = m.virtualInterface as any;
+      const org = vi?.organization;
+      return [String(m.switchPort), { ...m, orgName: org?.name || '', asn: org?.asn || null }];
+    }));
     const coreByPort = new Map<string, any>();
     for (const c of coreUse as any[]) {
       coreByPort.set(String(c.switchPortA), c);

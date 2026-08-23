@@ -59,15 +59,16 @@ interface Props {
 }
 
 type View = 'list' | 'detail';
-type DetailTab = 'overview' | 'infra' | 'peering' | 'routeservers' | 'monitoring' | 'connectivity' | 'peeringdb';
+type DetailTab = 'overview' | 'infra' | 'ippool' | 'peering' | 'routeservers' | 'patchpanels' | 'monitoring' | 'peeringdb';
 
 const DETAIL_TABS: { id: DetailTab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
   { id: 'infra', label: 'Infrastructure', icon: Building2 },
-  { id: 'peering', label: 'Peering & VLANs', icon: Users },
-  { id: 'routeservers', label: 'Route Servers', icon: Server },
-  { id: 'monitoring', label: 'Monitoring', icon: BarChart3 },
-  { id: 'connectivity', label: 'Connectivity', icon: Network },
+  { id: 'ippool', label: 'IP Pool', icon: Layers },
+  { id: 'peering', label: 'Peering', icon: Users },
+  { id: 'routeservers', label: 'Route Servers & Bird', icon: Server },
+  { id: 'patchpanels', label: 'Patch Panels', icon: Cable },
+  { id: 'monitoring', label: 'Live Stats', icon: BarChart3 },
   { id: 'peeringdb', label: 'PeeringDB', icon: Globe2 },
 ];
 
@@ -251,20 +252,23 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
             {detailTab === 'infra' && (
               <InfrastructureTab facilities={facilities} cabinets={cabinets} devices={devices} onGoFabric={goFabric} />
             )}
+            {detailTab === 'ippool' && (
+              <EmbeddedPanel title="IP Pool" hint="VLANs, IPv4/IPv6 address pools and allocation" section="vlans" />
+            )}
             {detailTab === 'peering' && (
-              <PeeringTab vlans={vlans} onGoVlans={goVlans} onGoPeers={goPeers} />
+              <EmbeddedPanel title="Peering" hint="Member connections, BGP peers and provisioning" section="peers" />
             )}
             {detailTab === 'routeservers' && (
               <RouteServersFullTab routeServers={routeServers} onGoBird={goBird} />
             )}
-            {detailTab === 'monitoring' && (
-              <MonitoringTab ixId={selectedIx._id} />
+            {detailTab === 'patchpanels' && (
+              <EmbeddedPanel title="Patch Panels" hint="Cross-connects, LOAs and fibre management" section="patchpanels" />
             )}
-            {detailTab === 'connectivity' && (
-              <ConnectivityTab />
+            {detailTab === 'monitoring' && (
+              <LiveStatsTab ixId={selectedIx._id} />
             )}
             {detailTab === 'peeringdb' && (
-              <EmbeddedPanel title="PeeringDB" hint="ASN lookup, sync & participant reconciliation." section="peeringdb" />
+              <EmbeddedPanel title="PeeringDB" hint="ASN lookup, facility search and member sync" section="peeringdb" />
             )}
           </div>
         )}
@@ -1094,31 +1098,51 @@ const InfrastructureTab: React.FC<{
       {selectedDevice && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-bold text-sm text-gray-300">{selectedDevice.name} - Ports ({ports.length})</h3>
+            <h3 className="font-bold text-sm text-gray-300">{selectedDevice.name} - {ports.length} Ports</h3>
             <Btn size="sm" icon={Plus} onClick={onGoFabric}>Generate Ports</Btn>
           </div>
           {loadingPorts ? <Spinner /> : ports.length === 0 ? (
             <EmptyState icon={Network} title="No ports" hint="Generate ports using a naming pattern." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Generate Ports</Btn>} />
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            <div className="space-y-1">
+              {/* Port table header */}
+              <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500 font-mono border-b border-gray-700">
+                <div className="col-span-3">Port</div>
+                <div className="col-span-2">Speed</div>
+                <div className="col-span-2">Status</div>
+                <div className="col-span-3">Customer</div>
+                <div className="col-span-2">Type</div>
+              </div>
+              {/* Port rows */}
               {ports.map((p: any) => {
-                const color = p.status === 'assigned' ? 'border-green-500/50 bg-green-500/5' : p.status === 'free' ? 'border-gray-600 bg-gray-800' : 'border-amber-500/50 bg-amber-500/5';
+                const statusColor = p.status === 'assigned' ? 'text-green-400' : p.status === 'free' ? 'text-gray-400' : 'text-amber-400';
+                const memberName = p.memberUse?.virtualInterface ? 'Connected' : '';
                 return (
-                  <div key={p._id} className={`border rounded-lg p-2 text-center ${color}`}>
-                    <p className="text-xs font-mono font-bold truncate" title={p.name}>{p.name}</p>
-                    <p className="text-[9px] uppercase text-gray-500 mt-0.5">{p.status}</p>
-                    {p.speed && <p className="text-[9px] text-gray-600">{p.speed >= 100000 ? `${p.speed / 1000}G` : p.speed >= 1000 ? `${p.speed / 1000}G` : `${p.speed}M`}</p>}
+                  <div key={p._id} className="grid grid-cols-12 gap-2 px-3 py-2 text-sm border-b border-gray-800 hover:bg-gray-800/50 rounded">
+                    <div className="col-span-3 font-mono text-xs font-bold truncate" title={p.name}>{p.name}</div>
+                    <div className="col-span-2 text-xs text-gray-400">{p.speed ? (p.speed >= 1000 ? `${p.speed / 1000}G` : `${p.speed}M`) : '-'}</div>
+                    <div className={`col-span-2 text-xs font-mono uppercase ${statusColor}`}>{p.status}</div>
+                    <div className="col-span-3 text-xs truncate">
+                      {p.memberUse ? (
+                        <span className="text-white">{p.memberUse.orgName || 'Member'} {p.memberUse.asn ? <span className="text-gray-500">AS{p.memberUse.asn}</span> : ''}</span>
+                      ) : p.coreUse ? (
+                        <span className="text-blue-400">Core Link</span>
+                      ) : (
+                        <span className="text-gray-600">-</span>
+                      )}
+                    </div>
+                    <div className="col-span-2 text-xs text-gray-500">{p.type || 'peering'}</div>
                   </div>
                 );
               })}
             </div>
           )}
-          {/* Port legend */}
+          {/* Port summary */}
           {ports.length > 0 && (
-            <div className="flex items-center gap-4 mt-3 text-[10px] text-gray-500">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-gray-600 bg-gray-800" /> Free</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-green-500/50 bg-green-500/10" /> Assigned</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-amber-500/50 bg-amber-500/10" /> Reserved/Other</span>
+            <div className="flex items-center gap-4 mt-3 px-3 text-xs text-gray-500">
+              <span className="text-green-400">{ports.filter((p: any) => p.status === 'assigned').length} assigned</span>
+              <span>{ports.filter((p: any) => p.status === 'free').length} free</span>
+              <span className="text-amber-400">{ports.filter((p: any) => p.status !== 'assigned' && p.status !== 'free').length} other</span>
             </div>
           )}
         </div>
@@ -1227,6 +1251,7 @@ const LazyPanels: Record<string, React.LazyExoticComponent<React.FC<any>>> = {
   patchpanels: lazy(() => import('./PatchPanelsAdminPanel')),
   peers: lazy(() => import('./PeersAdminPanel')),
   bird: lazy(() => import('./BirdAdminPanel')),
+  vlans: lazy(() => import('./VlansAdminPanel')),
   corebundles: lazy(() => import('./CoreBundlesAdminPanel')),
   maintenance: lazy(() => import('./MaintenanceAdminPanel')),
   peeringmatrix: lazy(() => import('./PeeringMatrixPanel')),
