@@ -513,6 +513,15 @@ const DashboardOverview: React.FC<{
       <StatCard label="Sites" value={stats.sites} loading={loadingStats} />
     </div>
 
+    {/* Quick actions — the daily tasks operators need one click away */}
+    <h2 className="text-sm font-bold mb-4 text-gray-500 font-mono uppercase tracking-wider">Quick Actions</h2>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-10">
+      <QuickAction icon="⚡" label="Provision Port" desc="End-to-end: member → port → VLAN → Bird" onClick={() => onPick('peers' as AdminSection)} color="bg-green-600" />
+      <QuickAction icon="🖥️" label="Add Switch" desc="Mount a new switch in a rack" onClick={() => onPick('fabric' as AdminSection)} color="bg-blue-600" />
+      <QuickAction icon="👤" label="Add Customer" desc="Create a new member organization" onClick={() => onPick('customers' as AdminSection)} color="bg-purple-600" />
+      <QuickAction icon="📋" label="IX Setup" desc="Guided infrastructure wizard" onClick={() => onPick('ixsetup' as AdminSection)} color="bg-amber-600" />
+    </div>
+
     <h2 className="text-sm font-bold mb-4 text-gray-500 font-mono uppercase tracking-wider">Quick access</h2>
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {sections.map((id) => {
@@ -576,3 +585,18 @@ const CommandPalette: React.FC<{
 };
 
 export default AdminDashboard;
+
+const QuickAction: React.FC<{ icon: string; label: string; desc: string; onClick: () => void; color: string }> = ({ icon, label, desc, onClick, color }) => (
+  <button
+    onClick={onClick}
+    className="group flex items-center gap-3 bg-gray-800 border border-gray-700 rounded-xl p-4 text-left hover:border-gray-500 transition-all"
+  >
+    <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center text-lg flex-shrink-0`}>
+      {icon}
+    </div>
+    <div className="min-w-0">
+      <h3 className="font-bold text-sm group-hover:text-[#F20732] transition-colors">{label}</h3>
+      <p className="text-[11px] text-gray-500 truncate">{desc}</p>
+    </div>
+  </button>
+);
