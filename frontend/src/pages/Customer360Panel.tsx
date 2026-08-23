@@ -273,27 +273,90 @@ const OverviewTab: React.FC<{
   );
 };
 
-// ── Connections Tab ──
+// ── Connections Tab with Physical Path ──
 const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[] }> = ({ connections, ports }) => (
   <div className="space-y-4">
     {connections.length ? connections.map((c) => (
-      <div key={c._id} className="bg-gray-800 border border-gray-700 rounded-lg p-5">
-        <div className="flex items-center justify-between mb-3">
+      <div key={c._id} className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+        <div className="px-5 py-4 flex items-center justify-between border-b border-gray-700">
           <h4 className="font-bold">{c.name}</h4>
-          <span className="text-xs font-mono text-gray-500">{c.capacityMbps ? `${c.capacityMbps >= 1000 ? `${c.capacityMbps / 1000}G` : `${c.capacityMbps}M`}` : '—'}</span>
+          <span className="text-xs font-mono text-gray-500">
+            {c.capacityMbps ? `${c.capacityMbps >= 1000 ? `${c.capacityMbps / 1000}G` : `${c.capacityMbps}M`}` : '—'}
+            {c.lagFraming !== 'none' && c.ports?.length > 1 ? ` LAG (${c.lagFraming})` : ''}
+          </span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <div><span className="text-gray-500 text-xs block">VLAN</span>{(c as any).vlan?.number || '—'}</div>
-          <div><span className="text-gray-500 text-xs block">IPv4</span>{(c as any).ipv4 || '—'}</div>
-          <div><span className="text-gray-500 text-xs block">IPv6</span>{(c as any).ipv6 || '—'}</div>
-          <div><span className="text-gray-500 text-xs block">Ports</span>{(c as any).portCount || 1}</div>
+
+        {/* Physical path for each port in the connection */}
+        <div className="p-5 space-y-3">
+          {(c.ports || []).map((p: any, idx: number) => (
+            <div key={p.id || idx} className="bg-gray-900 border border-gray-700 rounded p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-6 h-6 bg-[#F20732] rounded flex items-center justify-center text-[10px] font-bold">{idx + 1}</span>
+                <span className="font-bold text-sm">Physical Path</span>
+                <span className={`ml-auto text-[10px] uppercase font-mono ${p.status === 'active' ? 'text-green-400' : 'text-amber-400'}`}>
+                  {p.status || 'active'}
+                </span>
+              </div>
+
+              {/* Path visualization */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                <PathChip icon="🏢" label="Data Center" value={p.facilityName || '—'} />
+                <PathArrow />
+                <PathChip icon="📦" label="Rack" value={p.cabinetName || '—'} />
+                <PathArrow />
+                <PathChip icon="🖥️" label="Switch" value={p.switchName || '—'} />
+                <PathArrow />
+                <PathChip icon="🔌" label="Port" value={p.portName || '—'} />
+                {p.xconnectRef && (
+                  <>
+                    <PathArrow />
+                    <PathChip icon="🔗" label="X-Connect" value={p.xconnectRef} />
+                  </>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-xs">
+                <div><span className="text-gray-500 block">Speed</span><span className="font-mono">{p.speed >= 1000 ? `${p.speed / 1000}G` : `${p.speed}M`}</span></div>
+                <div><span className="text-gray-500 block">Switch</span><span className="font-mono">{p.switchName || '—'}</span></div>
+                <div><span className="text-gray-500 block">Port</span><span className="font-mono">{p.portName || '—'}</span></div>
+                <div><span className="text-gray-500 block">Location</span><span>{p.facilityName || '—'}</span></div>
+              </div>
+            </div>
+          ))}
+
+          {/* Peering / IP info */}
+          {(c.peers || []).map((peer: any, idx: number) => (
+            <div key={peer.id || idx} className="bg-gray-900/50 border border-gray-700/50 rounded p-4">
+              <h5 className="text-xs uppercase tracking-wider text-gray-500 font-mono mb-3">Peering Session {idx + 1}</h5>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <span className="text-gray-500 text-xs block">VLAN</span>
+                  <span className="font-mono">{peer.vlan?.name || '—'} (#{peer.vlan?.number || '—'})</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-xs block">IPv4</span>
+                  <span className="font-mono text-green-400">{peer.ipv4 || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-xs block">IPv6</span>
+                  <span className="font-mono text-green-400">{peer.ipv6 || '—'}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500 text-xs block">Route Server</span>
+                  <span className={`font-mono ${peer.rsClient ? 'text-green-400' : 'text-gray-500'}`}>
+                    {peer.rsClient ? `Yes (${peer.rsMode})` : 'No'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )) : (
       <p className="text-gray-500 text-sm py-8 text-center">No connections provisioned. Use "Provision Port" to create one.</p>
     )}
 
-    {ports.length > 0 && (
+    {ports.length > 0 && !connections.length && (
       <div className="mt-6">
         <h4 className="font-bold mb-3 text-gray-400 text-sm">Legacy Port Records</h4>
         <div className="space-y-2">
@@ -307,6 +370,20 @@ const ConnectionsTab: React.FC<{ connections: ConnectionItem[]; ports: PortItem[
       </div>
     )}
   </div>
+);
+
+const PathChip: React.FC<{ icon: string; label: string; value: string }> = ({ icon, label, value }) => (
+  <div className="flex-shrink-0 bg-gray-800 border border-gray-600 rounded px-3 py-2 min-w-[100px]">
+    <div className="flex items-center gap-1.5 mb-1">
+      <span className="text-xs">{icon}</span>
+      <span className="text-[9px] uppercase tracking-wider text-gray-500 font-mono">{label}</span>
+    </div>
+    <span className="text-sm font-bold truncate block">{value}</span>
+  </div>
+);
+
+const PathArrow: React.FC = () => (
+  <span className="text-gray-600 flex-shrink-0">→</span>
 );
 
 // ── Contacts Tab ──

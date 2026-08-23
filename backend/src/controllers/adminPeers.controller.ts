@@ -198,7 +198,7 @@ export const listConnections = async (req: Request, res: Response): Promise<void
     const ids = rows.map((r: any) => r._id);
     const [pis, vlis] = await Promise.all([
       PhysicalInterface.find({ virtualInterface: { $in: ids } })
-        .populate({ path: 'switchPort', select: 'name switch', populate: { path: 'switch', select: 'name' } })
+        .populate({ path: 'switchPort', select: 'name switch speed', populate: { path: 'switch', select: 'name cabinet facility', populate: [{ path: 'cabinet', select: 'name' }, { path: 'facility', select: 'name' }] } })
         .lean(),
       VlanInterface.find({ virtualInterface: { $in: ids } })
         .populate('vlan', 'name number isQuarantine')
@@ -234,6 +234,8 @@ export const listConnections = async (req: Request, res: Response): Promise<void
             status: p.status,
             portName: p.switchPort?.name || '',
             switchName: p.switchPort?.switch?.name || '',
+            cabinetName: p.switchPort?.switch?.cabinet?.name || '',
+            facilityName: p.switchPort?.switch?.facility?.name || '',
             xconnectRef: p.xconnectRef,
           })),
           // Total capacity across the LAG, which is what upgrade decisions use.
