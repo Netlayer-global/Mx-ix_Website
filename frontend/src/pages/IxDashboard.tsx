@@ -98,7 +98,15 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
-    const res = await adminFabricApi.ixDashboard();
+    // Try the dashboard endpoint first, fallback to basic list
+    let res = await adminFabricApi.ixDashboard();
+    if (!res.success || !res.data) {
+      // Fallback: use the basic infrastructure list (works on older server versions)
+      const fallback = await adminFabricApi.listInfrastructures();
+      if (fallback.success && fallback.data) {
+        res = { success: true, data: fallback.data.map((r: any) => ({ ...r, facilityCount: 0, cabinetCount: 0, memberCount: 0, totalPorts: 0, assignedPorts: 0, totalCapacityMbps: 0 })) };
+      }
+    }
     if (res.success && res.data) setIxList(res.data);
     setLoading(false);
   }, []);
