@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, lazy } from 'react';
 import {
   Network,
   Building2,
@@ -22,6 +22,8 @@ import {
   SwitchPortItem,
   RackElevation,
 } from '../services/api';
+
+const Rack3D = lazy(() => import('../components/Rack3D'));
 import {
   PanelShell,
   Breadcrumb,
@@ -297,14 +299,37 @@ const FabricAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
       )}
 
       {level === 'cabinets' && cabinet && (
-        <RackView
-          cabinet={cabinet}
-          elevation={elevation}
-          devices={devices}
-          onOpenDevice={(id) => setDeviceId(id)}
-          onEditCabinet={() => setModal({ kind: 'cabinet', row: cabinet })}
-          onAddDevice={() => setModal({ kind: 'device' })}
-        />
+        <>
+          <RackView
+            cabinet={cabinet}
+            elevation={elevation}
+            devices={devices}
+            onOpenDevice={(id) => setDeviceId(id)}
+            onEditCabinet={() => setModal({ kind: 'cabinet', row: cabinet })}
+            onAddDevice={() => setModal({ kind: 'device' })}
+          />
+          {elevation && (
+            <React.Suspense fallback={<div className="h-[500px] bg-gray-950 rounded-lg flex items-center justify-center"><div className="w-6 h-6 border-2 border-[#F20732] border-t-transparent rounded-full animate-spin" /></div>}>
+              <Card className="mt-4">
+                <div className="px-5 py-3 border-b border-gray-700 flex items-center justify-between">
+                  <h3 className="font-bold text-sm flex items-center gap-2">
+                    <LayoutGrid className="w-4 h-4 text-[#F20732]" /> 3D Rack View
+                  </h3>
+                  <span className="text-[10px] uppercase font-mono text-gray-500">
+                    {elevation.usedUnits}/{elevation.cabinet.uHeight}U occupied · {elevation.occupants.length} devices
+                  </span>
+                </div>
+                <div className="p-3">
+                  <Rack3D
+                    elevation={elevation}
+                    height={520}
+                    onDeviceClick={(occ) => setDeviceId(occ.id)}
+                  />
+                </div>
+              </Card>
+            </React.Suspense>
+          )}
+        </>
       )}
 
       {level === 'device' && deviceDetail && (
