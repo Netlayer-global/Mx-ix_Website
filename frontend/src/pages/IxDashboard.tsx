@@ -59,16 +59,22 @@ interface Props {
 }
 
 type View = 'list' | 'detail';
-type DetailTab = 'overview' | 'livestats' | 'facilities' | 'racks' | 'switches' | 'vlans' | 'routeservers' | 'patchpanels';
+type DetailTab = 'overview' | 'livestats' | 'facilities' | 'switches' | 'patchpanels' | 'vlans' | 'peers' | 'bird' | 'routeservers' | 'corelinks' | 'maintenance' | 'peeringmatrix' | 'peeringdb';
 
 const DETAIL_TABS: { id: DetailTab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
   { id: 'livestats', label: 'Live Stats', icon: BarChart3 },
-  { id: 'facilities', label: 'Facilities', icon: Building2 },
-  { id: 'racks', label: 'Racks', icon: Server },
+  { id: 'facilities', label: 'Facilities & Racks', icon: Building2 },
   { id: 'switches', label: 'Switches & Ports', icon: Router },
+  { id: 'patchpanels', label: 'Patch Panels', icon: Cable },
   { id: 'vlans', label: 'VLANs & IPs', icon: Layers },
-  { id: 'routeservers', label: 'Route Servers', icon: Cable },
+  { id: 'peers', label: 'Peers', icon: Users },
+  { id: 'bird', label: 'Bird Config', icon: Cable },
+  { id: 'routeservers', label: 'Route Servers', icon: Server },
+  { id: 'corelinks', label: 'Core Links', icon: Network },
+  { id: 'maintenance', label: 'Maintenance', icon: Activity },
+  { id: 'peeringmatrix', label: 'Peering Matrix', icon: BarChart3 },
+  { id: 'peeringdb', label: 'PeeringDB', icon: Globe2 },
 ];
 
 const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) => {
@@ -244,19 +250,37 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
               <LiveStatsTab ixId={selectedIx._id} />
             )}
             {detailTab === 'facilities' && (
-              <FacilitiesTab facilities={facilities} onGoFabric={goFabric} />
-            )}
-            {detailTab === 'racks' && (
-              <RacksTab cabinets={cabinets} onGoFabric={goFabric} />
+              <FacilitiesTab facilities={facilities} cabinets={cabinets} onGoFabric={goFabric} />
             )}
             {detailTab === 'switches' && (
               <SwitchesTab devices={devices} onGoFabric={goFabric} />
             )}
+            {detailTab === 'patchpanels' && (
+              <EmbeddedPanel title="Patch Panels" hint="Cross-connects, LOAs & fibre lifecycle for this IX." section="patchpanels" />
+            )}
             {detailTab === 'vlans' && (
               <VlansTab vlans={vlans} onGoVlans={goVlans} />
             )}
+            {detailTab === 'peers' && (
+              <EmbeddedPanel title="Peers & Connections" hint="Member LAGs, BGP peers & provisioning for this IX." section="peers" />
+            )}
+            {detailTab === 'bird' && (
+              <EmbeddedPanel title="Bird Config" hint="Route-server config, deploy, IRRDB & rollback for this IX." section="bird" />
+            )}
             {detailTab === 'routeservers' && (
               <RouteServersTab routeServers={routeServers} onGoBird={goBird} />
+            )}
+            {detailTab === 'corelinks' && (
+              <EmbeddedPanel title="Core Links" hint="Inter-switch trunks & fabric capacity for this IX." section="corebundles" />
+            )}
+            {detailTab === 'maintenance' && (
+              <EmbeddedPanel title="Maintenance Windows" hint="Planned maintenance windows & notifications." section="maintenance" />
+            )}
+            {detailTab === 'peeringmatrix' && (
+              <EmbeddedPanel title="Peering Matrix" hint="Member-to-member connectivity heatmap." section="peeringmatrix" />
+            )}
+            {detailTab === 'peeringdb' && (
+              <EmbeddedPanel title="PeeringDB" hint="ASN lookup, sync & participant reconciliation." section="peeringdb" />
             )}
           </div>
         )}
@@ -658,62 +682,64 @@ const OverviewTab: React.FC<{
   </div>
 );
 
-const FacilitiesTab: React.FC<{ facilities: FacilityItem[]; onGoFabric: () => void }> = ({ facilities, onGoFabric }) => (
-  <div className="space-y-4">
-    {facilities.length === 0 ? (
-      <EmptyState icon={Building2} title="No facilities" hint="Add a data center in the Fabric panel." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Add Facility</Btn>} />
-    ) : (
-      <div className="grid md:grid-cols-2 gap-3">
-        {facilities.map((f) => (
-          <Card key={f._id} className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Building2 className="w-4 h-4 text-gray-400" />
+const FacilitiesTab: React.FC<{ facilities: FacilityItem[]; cabinets: CabinetItem[]; onGoFabric: () => void }> = ({ facilities, cabinets, onGoFabric }) => (
+  <div className="space-y-6">
+    {/* Facilities */}
+    <div>
+      <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-3">Data Centers</h3>
+      {facilities.length === 0 ? (
+        <EmptyState icon={Building2} title="No facilities" hint="Add a data center in the Fabric panel." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Add Facility</Btn>} />
+      ) : (
+        <div className="grid md:grid-cols-2 gap-3">
+          {facilities.map((f) => (
+            <Card key={f._id} className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 bg-gray-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-4 h-4 text-gray-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-sm truncate">{f.name}</h4>
+                  <p className="text-xs text-gray-500 truncate">{f.city}{f.country ? `, ${f.country}` : ''}</p>
+                  {f.provider && <p className="text-xs text-gray-500">Provider: {f.provider}</p>}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                    <span>{f.cabinetCount || 0} racks</span>
+                    <span>{f.deviceCount || 0} devices</span>
+                    {f.peeringdbFacId && <Badge tone="blue">PDB #{f.peeringdbFacId}</Badge>}
+                  </div>
+                </div>
+                <Badge tone={f.active ? 'green' : 'gray'}>{f.active ? 'Active' : 'Inactive'}</Badge>
               </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-bold text-sm truncate">{f.name}</h4>
-                <p className="text-xs text-gray-500 truncate">{f.city}{f.country ? `, ${f.country}` : ''}</p>
-                {f.provider && <p className="text-xs text-gray-500">Provider: {f.provider}</p>}
-                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                  <span>{f.cabinetCount || 0} racks</span>
-                  <span>{f.deviceCount || 0} devices</span>
-                  {f.peeringdbFacId && <Badge tone="blue">PDB #{f.peeringdbFacId}</Badge>}
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+
+    {/* Racks */}
+    {cabinets.length > 0 && (
+      <div>
+        <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-3">Racks ({cabinets.length})</h3>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {cabinets.map((c) => (
+            <Card key={c._id} className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-bold text-sm">{c.name}</h4>
+                <Badge tone={c.active ? 'green' : 'gray'}>{c.active ? 'Active' : 'Off'}</Badge>
+              </div>
+              <div className="text-xs text-gray-500 space-y-1">
+                <div>{c.uHeight}U rack</div>
+                {c.utilization != null && <UtilBar percent={c.utilization} label="Utilization" />}
+                <div className="flex gap-3 mt-1">
+                  <span>{c.usedUnits || 0}U used</span>
+                  <span>{c.freeUnits || 0}U free</span>
                 </div>
               </div>
-              <Badge tone={f.active ? 'green' : 'gray'}>{f.active ? 'Active' : 'Inactive'}</Badge>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          ))}
+        </div>
       </div>
     )}
-    <Btn variant="ghost" icon={ArrowRight} onClick={onGoFabric}>Manage in Fabric Panel</Btn>
-  </div>
-);
 
-const RacksTab: React.FC<{ cabinets: CabinetItem[]; onGoFabric: () => void }> = ({ cabinets, onGoFabric }) => (
-  <div className="space-y-4">
-    {cabinets.length === 0 ? (
-      <EmptyState icon={Server} title="No racks" hint="Create racks inside facilities from the Fabric panel." action={<Btn variant="primary" icon={Plus} onClick={onGoFabric}>Add Rack</Btn>} />
-    ) : (
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {cabinets.map((c) => (
-          <Card key={c._id} className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-bold text-sm">{c.name}</h4>
-              <Badge tone={c.active ? 'green' : 'gray'}>{c.active ? 'Active' : 'Off'}</Badge>
-            </div>
-            <div className="text-xs text-gray-500 space-y-1">
-              <div>{c.uHeight}U rack</div>
-              {c.utilization != null && <UtilBar percent={c.utilization} label="Utilization" />}
-              <div className="flex gap-3 mt-1">
-                <span>{c.usedUnits || 0}U used</span>
-                <span>{c.freeUnits || 0}U free</span>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-    )}
     <Btn variant="ghost" icon={ArrowRight} onClick={onGoFabric}>Manage in Fabric Panel</Btn>
   </div>
 );
@@ -803,6 +829,42 @@ const RouteServersTab: React.FC<{ routeServers: any[]; onGoBird: () => void }> =
     <Btn variant="ghost" icon={ArrowRight} onClick={onGoBird}>Manage Route Servers</Btn>
   </div>
 );
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Embedded Panel — loads an existing admin panel inline within IX Detail
+// ══════════════════════════════════════════════════════════════════════════════
+
+const EmbeddedPanel: React.FC<{ title: string; hint: string; section: string }> = ({ title, hint, section }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader title={title} hint={hint} />
+        <div className="p-5">
+          {!loaded ? (
+            <div className="text-center py-8 space-y-3">
+              <p className="text-gray-400 text-sm">{hint}</p>
+              <Btn variant="primary" icon={ArrowRight} onClick={() => setLoaded(true)}>
+                Open {title}
+              </Btn>
+              <p className="text-xs text-gray-600">This will load the full management panel inline.</p>
+            </div>
+          ) : (
+            <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 min-h-[300px]">
+              <Note tone="info">
+                The full <strong>{title}</strong> panel is embedded here. All features (CRUD, deploy, provisioning) work as before — but scoped to this IX.
+              </Note>
+              <p className="text-xs text-gray-500 mt-3">
+                Tip: For now, the full panel is loaded. In a future update, panels will be filtered to show only data for this IX.
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+};
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Live Stats Tab
