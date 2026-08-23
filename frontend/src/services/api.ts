@@ -441,6 +441,13 @@ export interface IntegrationSettings {
     enabled: boolean;
     urlTemplate: string;
   };
+  peeringDb: {
+    enabled: boolean;
+    baseUrl: string;
+    hasApiKey: boolean;
+    apiKeyMask: string;
+    cacheTtlMinutes: number;
+  };
   contactForm: {
     recipientEmail: string;
     supportEmail: string;
@@ -490,6 +497,12 @@ export interface SettingsUpdate {
   flowGraph?: {
     enabled?: boolean;
     urlTemplate?: string;
+  };
+  peeringDb?: {
+    enabled?: boolean;
+    baseUrl?: string;
+    apiKey?: string;
+    cacheTtlMinutes?: number;
   };
   contactForm?: {
     recipientEmail?: string;

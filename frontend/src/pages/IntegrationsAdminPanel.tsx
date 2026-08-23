@@ -68,6 +68,14 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
   const [fgEnabled, setFgEnabled] = useState(false);
   const [fgUrl, setFgUrl] = useState('');
 
+  // PeeringDB form
+  const [pdbEnabled, setPdbEnabled] = useState(false);
+  const [pdbUrl, setPdbUrl] = useState('https://www.peeringdb.com/api');
+  const [pdbApiKey, setPdbApiKey] = useState('');
+  const [pdbHasKey, setPdbHasKey] = useState(false);
+  const [pdbKeyMask, setPdbKeyMask] = useState('');
+  const [pdbCacheTtl, setPdbCacheTtl] = useState('1440');
+
   // Contact form recipient
   const [cfRecipient, setCfRecipient] = useState('');
   const [cfSupport, setCfSupport] = useState('');
@@ -106,6 +114,12 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
     setZoRefresh('');
     setFgEnabled(data.flowGraph?.enabled || false);
     setFgUrl(data.flowGraph?.urlTemplate || '');
+    setPdbEnabled((data as any).peeringDb?.enabled || false);
+    setPdbUrl((data as any).peeringDb?.baseUrl || 'https://www.peeringdb.com/api');
+    setPdbHasKey((data as any).peeringDb?.hasApiKey || false);
+    setPdbKeyMask((data as any).peeringDb?.apiKeyMask || '');
+    setPdbApiKey('');
+    setPdbCacheTtl(String((data as any).peeringDb?.cacheTtlMinutes || 1440));
     setCfRecipient(data.contactForm?.recipientEmail || '');
     setCfSupport(data.contactForm?.supportEmail || '');
     setCfCc(data.contactForm?.ccEmails || '');
@@ -153,6 +167,12 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
       flowGraph: {
         enabled: fgEnabled,
         urlTemplate: fgUrl,
+      },
+      peeringDb: {
+        enabled: pdbEnabled,
+        baseUrl: pdbUrl,
+        ...(pdbApiKey ? { apiKey: pdbApiKey } : {}),
+        cacheTtlMinutes: Number(pdbCacheTtl) || 1440,
       },
       contactForm: {
         recipientEmail: cfRecipient,
@@ -528,6 +548,57 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
               Tip: the embed target must allow being shown in an iframe (Grafana: set <code>allow_embedding=true</code> and
               anonymous access or a public/shared link). No per-member setup is needed — each customer sees their own ASN.
             </p>
+          </div>
+        </section>
+
+        {/* ── PEERINGDB ─────────────────────────────────── */}
+        <section className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+            <div className="flex items-center gap-3">
+              <Activity className="w-5 h-5 text-[#F20732]" />
+              <div>
+                <h2 className="text-lg font-bold">PeeringDB</h2>
+                <p className="text-xs text-gray-500">ASN lookup, facility search &amp; member data sync</p>
+              </div>
+            </div>
+            <Toggle enabled={pdbEnabled} onChange={setPdbEnabled} />
+          </div>
+
+          <div className="p-6 space-y-4">
+            <p className="text-xs text-gray-400">
+              PeeringDB works in anonymous mode (read-only) without any configuration.
+              Enabling it and adding an API key raises the rate limit and gives access to contact data.
+            </p>
+            <Field label="API Base URL" hint="Default: https://www.peeringdb.com/api">
+              <input
+                type="url"
+                value={pdbUrl}
+                onChange={(e) => setPdbUrl(e.target.value)}
+                placeholder="https://www.peeringdb.com/api"
+                className="admin-input"
+              />
+            </Field>
+            <Field
+              label="API Key (optional)"
+              hint={pdbHasKey ? `Saved: ${pdbKeyMask} — leave blank to keep` : 'Get one from https://www.peeringdb.com/user/keys'}
+            >
+              <input
+                type="password"
+                value={pdbApiKey}
+                onChange={(e) => setPdbApiKey(e.target.value)}
+                placeholder={pdbHasKey ? '••••••••••' : 'API key (optional)'}
+                className="admin-input"
+              />
+            </Field>
+            <Field label="Cache TTL (minutes)" hint="How long fetched records stay cached before re-querying">
+              <input
+                type="number"
+                value={pdbCacheTtl}
+                onChange={(e) => setPdbCacheTtl(e.target.value)}
+                placeholder="1440"
+                className="admin-input w-32"
+              />
+            </Field>
           </div>
         </section>
 

@@ -55,6 +55,13 @@ export const getSettings = async (_req: Request, res: Response): Promise<void> =
           enabled: doc.flowGraph?.enabled || false,
           urlTemplate: doc.flowGraph?.urlTemplate || '',
         },
+        peeringDb: {
+          enabled: (doc as any).peeringDb?.enabled || false,
+          baseUrl: (doc as any).peeringDb?.baseUrl || 'https://www.peeringdb.com/api',
+          hasApiKey: !!(doc as any).peeringDb?.apiKey,
+          apiKeyMask: mask((doc as any).peeringDb?.apiKey || ''),
+          cacheTtlMinutes: (doc as any).peeringDb?.cacheTtlMinutes || 1440,
+        },
         contactForm: {
           recipientEmail: doc.contactForm?.recipientEmail || '',
           supportEmail: doc.contactForm?.supportEmail || '',
@@ -158,6 +165,15 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
       if (contactForm.supportEmail !== undefined)
         doc.contactForm.supportEmail = String(contactForm.supportEmail).trim();
       if (contactForm.ccEmails !== undefined) doc.contactForm.ccEmails = String(contactForm.ccEmails).trim();
+    }
+
+    const { peeringDb } = req.body;
+    if (peeringDb) {
+      if (!(doc as any).peeringDb) (doc as any).peeringDb = { enabled: false, baseUrl: 'https://www.peeringdb.com/api', apiKey: '', cacheTtlMinutes: 1440, syncMaxPrefixes: true, syncIrrAsSet: true };
+      if (peeringDb.enabled !== undefined) (doc as any).peeringDb.enabled = !!peeringDb.enabled;
+      if (peeringDb.baseUrl !== undefined) (doc as any).peeringDb.baseUrl = String(peeringDb.baseUrl).trim() || 'https://www.peeringdb.com/api';
+      if (peeringDb.apiKey && !isMasked(peeringDb.apiKey)) (doc as any).peeringDb.apiKey = String(peeringDb.apiKey).trim();
+      if (peeringDb.cacheTtlMinutes !== undefined) (doc as any).peeringDb.cacheTtlMinutes = Number(peeringDb.cacheTtlMinutes) || 1440;
     }
 
     if (req.body.siteVisibility && typeof req.body.siteVisibility === 'object' && !Array.isArray(req.body.siteVisibility)) {
