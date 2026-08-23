@@ -23,16 +23,14 @@ const bad = (res: Response, error: string, status = 400): void => {
 export const status = async (_req: Request, res: Response): Promise<void> => {
   try {
     const cfg = await getEffectivePeeringDb();
-    if (!cfg.enabled) {
-      return ok(res, { configured: false, connected: false, authenticated: false });
-    }
     const test = await peeringdb.testConnection();
     ok(res, {
-      configured: true,
+      configured: cfg.enabled,
       connected: test.ok,
       authenticated: test.ok ? !!test.data?.authenticated : false,
-      baseUrl: cfg.baseUrl,
-      cacheTtlMinutes: cfg.cacheTtlMinutes,
+      anonymous: !cfg.enabled && test.ok,
+      baseUrl: cfg.baseUrl || 'https://www.peeringdb.com/api',
+      cacheTtlMinutes: cfg.cacheTtlMinutes || 60,
       error: test.error,
     });
   } catch (err: any) {

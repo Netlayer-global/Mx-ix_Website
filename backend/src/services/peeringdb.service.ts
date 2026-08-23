@@ -158,15 +158,20 @@ const REQUEST_TIMEOUT_MS = 20000;
 
 async function call<T = any>(
   path: string,
-  opts: { cfg?: EffectivePeeringDb; noCache?: boolean } = {}
+  opts: { cfg?: EffectivePeeringDb; noCache?: boolean; allowAnonymous?: boolean } = {}
 ): Promise<PdbResult<T>> {
   const cfg = opts.cfg || (await getEffectivePeeringDb());
-  if (!cfg.enabled) {
+  // When not enabled but allowAnonymous is true (or the caller is an internal
+  // facility/ASN lookup), fall through in anonymous mode with defaults.
+  const anonymous = !cfg.enabled;
+  if (anonymous && opts.allowAnonymous === false) {
     return { ok: false, status: 0, error: 'PeeringDB is not enabled in Settings.' };
   }
+  const baseUrl = cfg.baseUrl || 'https://www.peeringdb.com/api';
+  const cacheTtl = cfg.cacheTtlMinutes || 60;
 
-  const target = `${cfg.baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
-  const ttlMs = Math.max(0, cfg.cacheTtlMinutes) * 60_000;
+  const target = `${baseUrl}${path.startsWith('/') ? path : `/${path}`}`;
+  const ttlMs = Math.max(0, cacheTtl) * 60_000;
 
   if (!opts.noCache && ttlMs > 0) {
     const hit = cacheGet(target, ttlMs);
@@ -248,9 +253,8 @@ const unwrapOne = <T>(res: PdbResult<any>): PdbResult<T | null> => {
 /** Verify configuration + reachability by fetching a tiny known record. */
 export const testConnection = async (): Promise<PdbResult<{ connected: boolean; authenticated: boolean }>> => {
   const cfg = await getEffectivePeeringDb();
-  if (!cfg.enabled) return { ok: false, status: 0, error: 'PeeringDB is not enabled in Settings.' };
-
-  const res = await call<any>('/net?limit=1', { cfg, noCache: true });
+  // Always attempt connection — works anonymously for reads
+  const res = await call<any>('/net?limit=1', { cfg: { ...cfg, enabled: true }, noCache: true });
   if (!res.ok) return { ok: false, status: res.status, error: res.error };
   return {
     ok: true,

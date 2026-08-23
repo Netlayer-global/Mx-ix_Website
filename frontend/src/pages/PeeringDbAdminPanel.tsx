@@ -131,8 +131,8 @@ const PeeringDbAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatTile
           label="Status"
-          value={status?.configured ? (status?.connected ? 'Connected' : 'Error') : 'Not configured'}
-          tone={status?.connected ? 'green' : status?.configured ? 'red' : 'gray'}
+          value={status?.connected ? 'Connected' : status?.configured ? 'Error' : 'Offline'}
+          tone={status?.connected ? 'green' : 'red'}
         />
         <StatTile label="Auth" value={status?.authenticated ? 'Authenticated' : 'Anonymous'} tone={status?.authenticated ? 'green' : 'amber'} hint={!status?.authenticated ? 'Add an API key for higher rate limits' : undefined} />
         <StatTile label="Base URL" value={status?.baseUrl || '—'} />
@@ -140,8 +140,10 @@ const PeeringDbAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
       </div>
 
       {!status?.configured && (
-        <Note tone="warning">
-          PeeringDB is not enabled in Settings. Go to Integrations &gt; PeeringDB and enable it. An API key is optional but recommended — without one, PeeringDB rate-limits after a few dozen requests.
+        <Note tone={status?.connected ? 'info' : 'warning'}>
+          {status?.connected
+            ? 'PeeringDB is working in anonymous mode (rate-limited). Enable it in Integrations and add an API key for higher rate limits and contact data access.'
+            : 'Could not reach PeeringDB. Check your server\'s internet connectivity. PeeringDB works without configuration (anonymous read access).'}
         </Note>
       )}
 

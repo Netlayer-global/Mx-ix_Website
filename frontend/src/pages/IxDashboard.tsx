@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+﻿import React, { useCallback, useEffect, useState, lazy, Suspense } from 'react';
 import {
   Globe2,
   Building2,
@@ -176,9 +176,9 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   // DETAIL VIEW
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   if (view === 'detail' && selectedIx) {
     const portUtil = selectedIx.totalPorts > 0
       ? Math.round((selectedIx.assignedPorts / selectedIx.totalPorts) * 100)
@@ -188,7 +188,7 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
     return (
       <PanelShell
         title={selectedIx.name}
-        subtitle={`ASN ${selectedIx.asn} · ${selectedIx.shortname}`}
+        subtitle={`ASN ${selectedIx.asn} Â· ${selectedIx.shortname}`}
         icon={Globe2}
         embedded={embedded}
         onBack={backToList}
@@ -317,9 +317,9 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
     );
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // LIST VIEW — IX Location Cards
-  // ══════════════════════════════════════════════════════════════════════════
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // LIST VIEW â€” IX Location Cards
+  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   return (
     <PanelShell
       title="IX Dashboard"
@@ -366,20 +366,29 @@ const IxDashboard: React.FC<Props> = ({ embedded, onBack, onNavigateSection }) =
         </div>
       )}
 
-      {/* Create IX inline form */}
+      {/* Setup Wizard */}
       {showCreateForm && (
-        <CreateIxForm
+        <IxSetupWizardModal
           onClose={() => setShowCreateForm(false)}
-          onCreated={() => { setShowCreateForm(false); loadDashboard(); }}
+          onDone={async (ixId) => {
+            setShowCreateForm(false);
+            // Reload dashboard and auto-open the new IX
+            const res = await adminFabricApi.ixDashboard();
+            if (res.success && res.data) {
+              setIxList(res.data);
+              const newIx = res.data.find((ix) => ix._id === ixId);
+              if (newIx) openDetail(newIx);
+            }
+          }}
         />
       )}
     </PanelShell>
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // IX Location Card
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const IxCard: React.FC<{ ix: IxDashboardItem; onClick: () => void }> = ({ ix, onClick }) => {
   const portUtil = ix.totalPorts > 0 ? Math.round((ix.assignedPorts / ix.totalPorts) * 100) : 0;
@@ -397,7 +406,7 @@ const IxCard: React.FC<{ ix: IxDashboardItem; onClick: () => void }> = ({ ix, on
           </div>
           <div>
             <h3 className="font-bold text-white group-hover:text-[#F20732] transition-colors">{ix.name}</h3>
-            <p className="text-xs text-gray-500 font-mono">AS{ix.asn} · {ix.shortname}</p>
+            <p className="text-xs text-gray-500 font-mono">AS{ix.asn} Â· {ix.shortname}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -438,9 +447,9 @@ const IxCard: React.FC<{ ix: IxDashboardItem; onClick: () => void }> = ({ ix, on
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Create IX Form (inline)
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const CreateIxForm: React.FC<{ onClose: () => void; onCreated: () => void }> = ({ onClose, onCreated }) => {
   const [form, setForm] = useState({ name: '', shortname: '', asn: '', peeringLanName: '', mtu: '1500' });
@@ -507,9 +516,9 @@ const CreateIxForm: React.FC<{ onClose: () => void; onCreated: () => void }> = (
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Edit IX Form (modal)
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const EditIxForm: React.FC<{ ix: IxDashboardItem; onClose: () => void; onSaved: (data: any) => void }> = ({ ix, onClose, onSaved }) => {
   const [form, setForm] = useState({
@@ -601,9 +610,138 @@ const EditIxForm: React.FC<{ ix: IxDashboardItem; onClose: () => void; onSaved: 
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// IX Setup Wizard â€” Create new IX (simple form + auto-scaffold)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+const IxSetupWizardModal: React.FC<{ onClose: () => void; onDone: (ixId?: string) => void }> = ({ onClose, onDone }) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState({
+    name: '',
+    shortname: '',
+    asn: '',
+    mtu: '9000',
+    city: '',
+    createRouteServers: true,
+  });
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.shortname || !form.asn) {
+      setError('Name, short name, and ASN are required.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+
+    // 1. Create the infrastructure
+    const res = await adminFabricApi.createInfrastructure({
+      name: form.name,
+      shortname: form.shortname.toLowerCase(),
+      asn: Number(form.asn),
+      mtu: Number(form.mtu) || 9000,
+      peeringLanName: `${form.name} Peering LAN`,
+      location: form.city.toLowerCase(),
+    });
+
+    if (!res.success || !res.data) {
+      setError(res.error || 'Failed to create IX.');
+      setBusy(false);
+      return;
+    }
+
+    const infraId = res.data._id;
+
+    // 2. Auto-create 2 route servers if requested
+    if (form.createRouteServers) {
+      const shortname = form.shortname.toLowerCase();
+      await Promise.all([
+        adminBirdApi.create({
+          name: `rs1.${shortname}`,
+          infrastructure: infraId,
+          asn: Number(form.asn),
+          family: 'dual',
+        } as any),
+        adminBirdApi.create({
+          name: `rs2.${shortname}`,
+          infrastructure: infraId,
+          asn: Number(form.asn),
+          family: 'dual',
+        } as any),
+      ]).catch(() => { /* non-critical */ });
+    }
+
+    setBusy(false);
+    onDone(infraId);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+      <div className="bg-gray-800 border border-gray-700 rounded-xl w-full max-w-lg">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <div>
+            <h2 className="text-lg font-bold">Add New IX</h2>
+            <p className="text-xs text-gray-500">Create an exchange point for a location</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-700 rounded" aria-label="Close"><X className="w-4 h-4" /></button>
+        </div>
+
+        <form onSubmit={handleCreate} className="px-6 py-5 space-y-4">
+          {error && <Note tone="error">{error}</Note>}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>IX Name *</label>
+              <input className={field} placeholder="MX-IX Mumbai" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+            </div>
+            <div>
+              <label className={labelCls}>Short Name *</label>
+              <input className={field} placeholder="mumbai" value={form.shortname} onChange={(e) => setForm({ ...form, shortname: e.target.value })} required />
+              <p className="text-[10px] text-gray-600 mt-0.5">Lowercase, used in configs</p>
+            </div>
+            <div>
+              <label className={labelCls}>ASN *</label>
+              <input className={field} type="number" placeholder="135330" value={form.asn} onChange={(e) => setForm({ ...form, asn: e.target.value })} required />
+            </div>
+            <div>
+              <label className={labelCls}>City</label>
+              <input className={field} placeholder="Mumbai" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+            </div>
+            <div>
+              <label className={labelCls}>MTU</label>
+              <input className={field} type="number" placeholder="9000" value={form.mtu} onChange={(e) => setForm({ ...form, mtu: e.target.value })} />
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <input type="checkbox" checked={form.createRouteServers} onChange={(e) => setForm({ ...form, createRouteServers: e.target.checked })} className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-[#F20732] focus:ring-[#F20732]" />
+                Auto-create 2 Route Servers
+              </label>
+            </div>
+          </div>
+
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-3 text-xs text-gray-400">
+            <p className="font-bold text-gray-300 mb-1">What happens next:</p>
+            <ul className="space-y-0.5 list-disc pl-4">
+              <li>IX is created with the given ASN and MTU</li>
+              {form.createRouteServers && <li>2 Route Servers (rs1 + rs2) are auto-registered</li>}
+              <li>IX detail opens â€” add facilities, racks, switches, VLANs from there</li>
+            </ul>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <Btn type="submit" variant="primary" busy={busy} icon={Plus}>Create IX</Btn>
+            <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Detail Tabs
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 const OverviewTab: React.FC<{
   ix: IxDashboardItem;
@@ -764,7 +902,7 @@ const SwitchesTab: React.FC<{ devices: DeviceItem[]; onGoFabric: () => void }> =
                     <Badge tone="gray">{d.deviceType}</Badge>
                     <Badge tone={d.active ? 'green' : 'red'}>{d.active ? 'Active' : 'Off'}</Badge>
                   </div>
-                  <p className="text-xs text-gray-500">{d.vendor} {d.hardwareModel || ''} · {d.hostname || 'no hostname'}</p>
+                  <p className="text-xs text-gray-500">{d.vendor} {d.hardwareModel || ''} Â· {d.hostname || 'no hostname'}</p>
                 </div>
                 <div className="text-right text-xs text-gray-500">
                   {d.ports && (
@@ -795,7 +933,7 @@ const VlansTab: React.FC<{ vlans: VlanItem[]; onGoVlans: () => void }> = ({ vlan
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-sm">{v.name}</h4>
-                <p className="text-xs text-gray-500 font-mono">VLAN {v.tag} · {v.ipv4Subnet || 'no IPv4'} · {v.ipv6Subnet || 'no IPv6'}</p>
+                <p className="text-xs text-gray-500 font-mono">VLAN {v.tag} Â· {v.ipv4Subnet || 'no IPv4'} Â· {v.ipv6Subnet || 'no IPv6'}</p>
               </div>
               <Badge tone={v.active !== false ? 'green' : 'gray'}>{v.active !== false ? 'Active' : 'Off'}</Badge>
             </div>
@@ -818,7 +956,7 @@ const RouteServersTab: React.FC<{ routeServers: any[]; onGoBird: () => void }> =
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-sm">{rs.name}</h4>
-                <p className="text-xs text-gray-500 font-mono">AS{rs.asn} · {rs.peeringIpv4 || ''} · {rs.peeringIpv6 || ''}</p>
+                <p className="text-xs text-gray-500 font-mono">AS{rs.asn} Â· {rs.peeringIpv4 || ''} Â· {rs.peeringIpv6 || ''}</p>
               </div>
               <Badge tone={rs.enabled !== false ? 'green' : 'gray'}>{rs.enabled !== false ? 'Online' : 'Offline'}</Badge>
             </div>
@@ -830,45 +968,39 @@ const RouteServersTab: React.FC<{ routeServers: any[]; onGoBird: () => void }> =
   </div>
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Embedded Panel — loads an existing admin panel inline within IX Detail
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Embedded Panel â€” loads an existing admin panel inline within IX Detail
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+const LazyPanels: Record<string, React.LazyExoticComponent<React.FC<any>>> = {
+  patchpanels: lazy(() => import('./PatchPanelsAdminPanel')),
+  peers: lazy(() => import('./PeersAdminPanel')),
+  bird: lazy(() => import('./BirdAdminPanel')),
+  corebundles: lazy(() => import('./CoreBundlesAdminPanel')),
+  maintenance: lazy(() => import('./MaintenanceAdminPanel')),
+  peeringmatrix: lazy(() => import('./PeeringMatrixPanel')),
+  peeringdb: lazy(() => import('./PeeringDbAdminPanel')),
+};
 
 const EmbeddedPanel: React.FC<{ title: string; hint: string; section: string }> = ({ title, hint, section }) => {
-  const [loaded, setLoaded] = useState(false);
+  const Panel = LazyPanels[section];
+
+  if (!Panel) {
+    return <Note tone="warning">Panel "{section}" not available.</Note>;
+  }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader title={title} hint={hint} />
-        <div className="p-5">
-          {!loaded ? (
-            <div className="text-center py-8 space-y-3">
-              <p className="text-gray-400 text-sm">{hint}</p>
-              <Btn variant="primary" icon={ArrowRight} onClick={() => setLoaded(true)}>
-                Open {title}
-              </Btn>
-              <p className="text-xs text-gray-600">This will load the full management panel inline.</p>
-            </div>
-          ) : (
-            <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 min-h-[300px]">
-              <Note tone="info">
-                The full <strong>{title}</strong> panel is embedded here. All features (CRUD, deploy, provisioning) work as before — but scoped to this IX.
-              </Note>
-              <p className="text-xs text-gray-500 mt-3">
-                Tip: For now, the full panel is loaded. In a future update, panels will be filtered to show only data for this IX.
-              </p>
-            </div>
-          )}
-        </div>
-      </Card>
+    <div className="-mx-4 sm:-mx-6 -mb-6">
+      <Suspense fallback={<div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-[#F20732]" /></div>}>
+        <Panel embedded />
+      </Suspense>
     </div>
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // Live Stats Tab
-// ══════════════════════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 type StatsRange = '1h' | '24h' | '7d' | '30d';
 
@@ -920,7 +1052,7 @@ const LiveStatsTab: React.FC<{ ixId: string }> = ({ ixId }) => {
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <span className={`inline-block w-2 h-2 rounded-full ${t.source === 'zabbix' ? 'bg-green-500' : 'bg-gray-500'}`} />
           {t.source === 'zabbix' ? 'Live from Zabbix' : 'No Zabbix data'}
-          {range === '1h' && <span className="text-gray-600">· auto-refreshing</span>}
+          {range === '1h' && <span className="text-gray-600">Â· auto-refreshing</span>}
         </div>
       </div>
 
@@ -958,7 +1090,7 @@ const LiveStatsTab: React.FC<{ ixId: string }> = ({ ixId }) => {
   );
 };
 
-// ── Simple SVG traffic chart ──
+// â”€â”€ Simple SVG traffic chart â”€â”€
 
 const TrafficChart: React.FC<{ series: { timestamps: number[]; inbound: number[]; outbound: number[] } }> = ({ series }) => {
   const { inbound, outbound } = series;
