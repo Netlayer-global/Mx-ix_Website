@@ -70,6 +70,10 @@ router.use('/lg', lgRoutes);
 router.use('/status', statusRoutes);
 router.use('/site-promo', sitePromoRoutes);
 router.use('/ix-f', ixfExportRoutes);
+
+// Public: upcoming maintenance windows (consumed by portal and status page)
+import { upcomingWindows } from '../controllers/adminMaintenanceWindows.controller';
+router.get('/maintenance/upcoming', upcomingWindows as any);
 router.use('/members', membersRoutes);
 router.use('/portal', portalRoutes);
 router.use('/admin/customers', adminCustomersRoutes);

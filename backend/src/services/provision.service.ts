@@ -77,6 +77,8 @@ export interface ProvisionInput {
   /** Build and push route-server config. Off means "stage only". */
   deploy?: boolean;
   actor?: string;
+  /** If provisioned from an order, pass the order ID to auto-complete it. */
+  orderId?: string;
 }
 
 export interface ProvisionStep {
@@ -455,6 +457,43 @@ export const provisionConnection = async (input: ProvisionInput): Promise<Provis
       deployed: deployments.filter((d) => d.applied).length,
     },
   });
+
+  // ── Post-provision hooks (best-effort — never block the result) ──
+
+  // 1. Auto-create Zabbix host for monitoring
+  try {
+    const { provisionZabbixHost } = await import('./zabbixProvision.service');
+    const switchName = ports[0]?.name || `port-${vi._id}`;
+    const hostid = await provisionZabbixHost({
+      hostname: switchName,
+      displayName: `${org.name} — ${switchName}`,
+      groupName: 'MX-IX Members',
+    });
+    if (hostid) {
+      const { Port: PortModel } = await import('../models');
+      await PortModel.findOneAndUpdate(
+        { organization: org._id, name: { $regex: new RegExp(switchName, 'i') } },
+        { zabbixHostId: hostid }
+      );
+      steps.push({ step: 'zabbix', ok: true, detail: `Host ${hostid} created` });
+    }
+  } catch (err: any) {
+    warnings.push(`Zabbix host auto-provision skipped: ${err?.message}`);
+  }
+
+  // 2. Auto-complete the linked order (if provisioned from an order)
+  if (input.orderId) {
+    try {
+      const { default: Order } = await import('../models/order.model');
+      await Order.findByIdAndUpdate(input.orderId, {
+        $set: { status: 'completed' },
+        $push: { updates: { status: 'completed', message: 'Auto-completed after successful provisioning', at: new Date() } },
+      });
+      steps.push({ step: 'order-complete', ok: true, detail: `Order ${input.orderId} → completed` });
+    } catch (err: any) {
+      warnings.push(`Order auto-complete failed: ${err?.message}`);
+    }
+  }
 
   return {
     ok: true,
