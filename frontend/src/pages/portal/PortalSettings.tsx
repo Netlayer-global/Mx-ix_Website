@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader2, Lock, Building2, CheckCircle2, ShieldCheck, Smartphone } from 'lucide-react';
 import { portalApi, PortalUserInfo, PortalOrgInfo } from '../../services/api';
 import { PageHeading, Badge } from './ui';
@@ -162,6 +162,10 @@ const PortalSettings: React.FC<Props> = ({ user, org }) => {
           </section>
 
           <TwoFactorCard enabled={!!user.twoFactorEnabled} inputClass={inputClass} />
+
+          <ApiTokensSection />
+
+          <DocumentsSection />
         </div>
       </div>
     </div>
@@ -310,3 +314,76 @@ const TwoFactorCard: React.FC<{ enabled: boolean; inputClass: string }> = ({ ena
 };
 
 export default PortalSettings;
+
+/**
+ * API Tokens — self-service token management for programmatic access.
+ * Uses the admin tokens endpoint proxied through portal auth.
+ * Note: In a production deployment, a dedicated portal-scoped token endpoint
+ * would be better. For now this is a placeholder UI showing the concept.
+ */
+const ApiTokensSection: React.FC = () => (
+  <section className="bg-white border border-gray-200 mt-6">
+    <div className="px-5 py-4 border-b border-gray-200">
+      <h3 className="font-mono text-label tracking-label uppercase text-ink">API Access</h3>
+    </div>
+    <div className="px-5 py-6 text-center">
+      <p className="text-sm text-gray-600">
+        Programmatic API access is available for automation. Contact us at{' '}
+        <a href="mailto:support@mx-ix.com" className="text-[#F20732] hover:underline">support@mx-ix.com</a>{' '}
+        to request an API token for your organization.
+      </p>
+      <p className="text-xs text-gray-500 mt-3 font-mono">
+        API documentation is available upon token issuance.
+      </p>
+    </div>
+  </section>
+);
+
+/**
+ * Member-visible documents (LOAs, contracts, policies shared by the exchange).
+ * Fetches from the public portal endpoint — only docs marked memberVisible/shared.
+ */
+const DocumentsSection: React.FC = () => {
+  const [docs, setDocs] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/portal/documents', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('mx-ix-portal-token') || ''}` },
+    })
+      .then((r) => r.json())
+      .then((res) => { if (res.success && res.data) setDocs(res.data); })
+      .catch(() => {});
+  }, []);
+
+  if (!docs.length) return null;
+
+  return (
+    <section className="bg-white border border-gray-200 mt-6">
+      <div className="px-5 py-4 border-b border-gray-200">
+        <h3 className="font-mono text-label tracking-label uppercase text-ink">My Documents</h3>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {docs.map((d: any) => (
+          <div key={d._id} className="px-5 py-4 flex items-center justify-between">
+            <div className="min-w-0">
+              <p className="font-bold text-sm truncate">{d.name || d.filename}</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {d.category} · uploaded {new Date(d.createdAt).toLocaleDateString()}
+              </p>
+            </div>
+            {d.downloadUrl && (
+              <a
+                href={d.downloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-label-sm tracking-mono uppercase text-[#F20732] hover:underline"
+              >
+                Download
+              </a>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};

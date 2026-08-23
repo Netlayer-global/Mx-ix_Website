@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2, Network, Share2, AlertTriangle, Hash, ArrowRight, Activity } from 'lucide-react';
+import { Loader2, Network, Share2, AlertTriangle, Hash, ArrowRight, Activity, Calendar } from 'lucide-react';
 import { portalApi, PortalOrgInfo, PortalOverview as Overview } from '../../services/api';
 import { PageHeading, StatCard, Badge, portStatusTone, impactTone, EmptyState } from './ui';
 
@@ -163,6 +163,9 @@ const PortalOverview: React.FC<Props> = ({ org, onGoToSection }) => {
         </section>
       </div>
 
+      {/* Upcoming maintenance */}
+      <UpcomingMaintenance />
+
       {/* Quick links */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
         <button
@@ -198,3 +201,49 @@ const PortalOverview: React.FC<Props> = ({ org, onGoToSection }) => {
 };
 
 export default PortalOverview;
+
+/** Upcoming maintenance windows (fetched from the public endpoint). */
+const UpcomingMaintenance: React.FC = () => {
+  const [windows, setWindows] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch('/api/maintenance/upcoming')
+      .then((r) => r.json())
+      .then((res) => { if (res.success && res.data) setWindows(res.data); })
+      .catch(() => {});
+  }, []);
+
+  if (!windows.length) return null;
+
+  return (
+    <section className="bg-white border border-gray-200 my-6">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-200">
+        <Calendar className="w-4 h-4 text-amber-500" />
+        <h3 className="font-mono text-label tracking-label uppercase text-ink">Planned Maintenance</h3>
+      </div>
+      <div className="divide-y divide-gray-100">
+        {windows.map((w: any) => (
+          <div key={w._id} className="px-5 py-4">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-sm">{w.title}</span>
+              <span className={`inline-block px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider border rounded ${
+                w.state === 'in-progress'
+                  ? 'bg-red-500/10 text-red-500 border-red-500/30'
+                  : 'bg-amber-500/10 text-amber-600 border-amber-500/30'
+              }`}>
+                {w.state === 'in-progress' ? 'In Progress' : 'Scheduled'}
+              </span>
+            </div>
+            <p className="font-mono text-xs text-gray-500 mt-1">
+              {new Date(w.scheduledStart).toLocaleString()} → {new Date(w.scheduledEnd).toLocaleString()}
+            </p>
+            {w.affectedComponents?.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">Affects: {w.affectedComponents.join(', ')}</p>
+            )}
+            {w.description && <p className="text-sm text-gray-600 mt-2">{w.description}</p>}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
