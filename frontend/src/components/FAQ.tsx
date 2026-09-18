@@ -20,7 +20,7 @@ const FAQS = [
     a: 'No. MX-IX pricing is per-port and unmetered — exchange as much traffic as you like. A single port unlocks the entire peering ecosystem with no per-megabit charges.',
   },
   {
-    q: 'Is MX-IX carrier and data-center neutral?',
+    q: 'Is MX-IX a neutral Internet Exchange?',
     a: 'Yes. We are fully neutral by design. Every network connects on equal terms and is free to peer with whomever it chooses, across multiple data centers.',
   },
   {

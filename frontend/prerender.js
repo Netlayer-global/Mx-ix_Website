@@ -14,7 +14,7 @@ if (!fs.existsSync(INDEX_HTML_PATH)) {
 }
 
 const PAGE_TITLES = {
-  home: 'MX-IX — Carrier-Neutral Internet Exchange & Peering',
+  home: 'MX-IX — Neutral Internet Exchange & Peering',
   about: 'About — MX-IX Internet Exchange',
   services: 'Services — Peering, Cloud Connect & DDoS Protection | MX-IX',
   locations: 'Locations — MX-IX Points of Presence',
@@ -35,8 +35,8 @@ const PAGE_TITLES = {
 };
 
 const PAGE_DESCRIPTIONS = {
-  home: 'MX-IX is a carrier-neutral Internet Exchange where networks peer directly — lower latency, reduced transit costs and resilient interconnection.',
-  about: 'MX-IX is a carrier- and data-center-neutral Internet Exchange. Learn about our mission to make interconnection simple, open and accessible.',
+  home: 'MX-IX is a neutral Internet Exchange where networks peer directly — lower latency, reduced transit costs and resilient interconnection.',
+  about: 'MX-IX is a neutral Internet Exchange. Learn about our mission to make interconnection simple, open and accessible.',
   services: 'Public and private peering, cloud connectivity and DDoS protection on the MX-IX fabric — everything your network needs to interconnect.',
   locations: 'MX-IX points of presence and data centers. Explore route servers, connected ASNs and enabled sites across our locations.',
   networks: 'Browse the networks peering at MX-IX — ASNs, peering policies and session status across our route servers.',

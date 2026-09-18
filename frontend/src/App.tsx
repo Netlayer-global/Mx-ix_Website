@@ -121,7 +121,7 @@ const NavLink = ({
 };
 
 const PAGE_TITLES: Record<string, string> = {
-  home: 'MX-IX — Carrier-Neutral Internet Exchange & Peering',
+  home: 'MX-IX — Neutral Internet Exchange & Peering',
   about: 'About — MX-IX Internet Exchange',
   services: 'Services — Peering, Cloud Connect & DDoS Protection | MX-IX',
   locations: 'Locations — MX-IX Points of Presence',
@@ -142,8 +142,8 @@ const PAGE_TITLES: Record<string, string> = {
 };
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
-  home: 'MX-IX is a carrier-neutral Internet Exchange where networks peer directly — lower latency, reduced transit costs and resilient interconnection.',
-  about: 'MX-IX is a carrier- and data-center-neutral Internet Exchange. Learn about our mission to make interconnection simple, open and accessible.',
+  home: 'MX-IX is a neutral Internet Exchange where networks peer directly — lower latency, reduced transit costs and resilient interconnection.',
+  about: 'MX-IX is a neutral Internet Exchange. Learn about our mission to make interconnection simple, open and accessible.',
   services: 'Public and private peering, cloud connectivity and DDoS protection on the MX-IX fabric — everything your network needs to interconnect.',
   locations: 'MX-IX points of presence and data centers. Explore route servers, connected ASNs and enabled sites across our locations.',
   networks: 'Browse the networks peering at MX-IX — ASNs, peering policies and session status across our route servers.',
@@ -166,7 +166,7 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
 function applyPageMeta(page: string) {
   const origin = window.location.origin;
   const path = PATH_BY_PAGE[page] || '/';
-  const title = PAGE_TITLES[page] || 'MX-IX — Carrier-Neutral Internet Exchange';
+  const title = PAGE_TITLES[page] || 'MX-IX — Neutral Internet Exchange';
   const desc = PAGE_DESCRIPTIONS[page] || PAGE_DESCRIPTIONS.home;
   const url = `${origin}${path}`;
 
@@ -681,7 +681,7 @@ const Footer = ({ setPage, pageVisibility }: { setPage: (p: string) => void, pag
               <span className="text-2xl font-black tracking-tighter leading-none">MX-IX</span>
             </div>
             <p className="max-w-xs text-gray-500 text-sm leading-relaxed font-light">
-              The carrier-neutral Internet Exchange where networks meet to peer directly — faster, cheaper and more resilient interconnection.
+              The neutral Internet Exchange where networks meet to peer directly — faster, cheaper and more resilient interconnection.
             </p>
             <div className="flex items-center gap-3 font-mono text-label-sm tracking-label uppercase text-gray-500">
               <span className="text-gray-200">AS141539</span>

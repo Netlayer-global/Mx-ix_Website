@@ -190,7 +190,7 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
       <h3>Per-port summary</h3>
       <table><thead><tr><th>Port</th><th>Speed</th><th>Location</th><th>95th</th><th>Peak In</th><th>Peak Out</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="6">No ports</td></tr>'}</tbody></table>
-      <div class="foot">MX-IX — Carrier-Neutral Internet Exchange. This report is generated from monitoring data and provided for informational purposes.</div>
+      <div class="foot">MX-IX — Neutral Internet Exchange. This report is generated from monitoring data and provided for informational purposes.</div>
       <script>window.onload=function(){setTimeout(function(){window.print()},300)}</script>
       </body></html>`);
     win.document.close();

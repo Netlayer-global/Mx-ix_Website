@@ -25,7 +25,7 @@ const CAPABILITIES = [
   {
     Icon: ShieldCheck,
     title: 'Resilient & Neutral',
-    desc: 'Carrier-neutral, fully redundant fabric with 24/7 NOC monitoring, blackholing and a 99.99% SLA.',
+    desc: 'Neutral, fully redundant fabric with 24/7 NOC monitoring, blackholing and a 99.99% SLA.',
     tag: '04',
   },
 ];

@@ -8,7 +8,7 @@ const SECTIONS: LegalSection[] = [
     id: 'overview',
     heading: 'Overview',
     body: [
-      'MX-IX Digital Infrastructure Pvt. Ltd. ("MX-IX", "we", "us") operates a carrier-neutral Internet Exchange and this website. This Privacy Policy explains what personal data we collect, how we use it, and the rights you have over it.',
+      'MX-IX Digital Infrastructure Pvt. Ltd. ("MX-IX", "we", "us") operates a neutral Internet Exchange and this website. This Privacy Policy explains what personal data we collect, how we use it, and the rights you have over it.',
       'We are committed to handling your data lawfully, transparently and securely. This policy applies to members, prospective members and visitors to our website.',
     ],
   },

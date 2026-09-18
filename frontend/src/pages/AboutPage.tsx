@@ -58,7 +58,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
             ABOUT <span className="text-[#F20732]">MX-IX</span>
           </h1>
           <p className="text-gray-500 text-base md:text-lg leading-relaxed max-w-2xl border-l-2 border-white/10 pl-6">
-            MX-IX is a carrier- and data-center-neutral Internet Exchange where networks meet to
+            MX-IX is a neutral Internet Exchange where networks meet to
             exchange traffic directly — improving performance, cutting transit costs and keeping
             local traffic local.
           </p>
@@ -93,7 +93,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           </div>
           <div className="border border-gray-200 divide-y divide-gray-200">
             {[
-              { icon: Globe2, t: 'Neutral fabric', d: 'No carrier or DC lock-in.' },
+              { icon: Globe2, t: 'Neutral fabric', d: 'No provider or DC lock-in.' },
               { icon: Network, t: 'One port, full reach', d: 'Peer with every member.' },
               { icon: ShieldCheck, t: 'Secure routing', d: 'RPKI + IRR filtered.' },
             ].map((f) => (
@@ -138,7 +138,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">How we're growing the regional internet</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200">
             {[
-              { n: '01', t: 'Launch', d: 'MX-IX goes live with carrier-neutral PoPs and multilateral route servers.' },
+              { n: '01', t: 'Launch', d: 'MX-IX goes live with neutral PoPs and multilateral route servers.' },
               { n: '02', t: 'Expand', d: 'New cities added across South Asia and the Middle East, growing reach.' },
               { n: '03', t: 'Enrich', d: 'Cloud on-ramps, DDoS protection and a self-service member portal.' },
               { n: '04', t: 'Scale', d: '400G-ready fabric and deeper interconnection with global networks.' },
@@ -161,7 +161,7 @@ const AboutPage: React.FC<AboutPageProps> = ({ onNavigate }) => {
           <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">Our values</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/10 border border-white/10">
             {[
-              { icon: Scale, t: 'Neutrality', d: 'Carrier- and DC-neutral by design. Every network connects on equal terms.' },
+              { icon: Scale, t: 'Neutrality', d: 'Fully neutral by design. Every network connects on equal terms.' },
               { icon: Activity, t: 'Reliability', d: 'Redundant switching, dual route servers and 24/7 monitoring. 99.99% is the baseline.' },
               { icon: Globe2, t: 'Openness', d: 'Transparent pricing, an open peering policy and a public looking glass.' },
               { icon: Users, t: 'Community', d: 'We make interconnection affordable for networks of every size.' },

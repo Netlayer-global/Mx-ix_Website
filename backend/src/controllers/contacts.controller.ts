@@ -52,7 +52,7 @@ const buildEnquiryEmail = (
         </td></tr>
         <!-- footer -->
         <tr><td style="padding:20px 32px;background:#fafafa;border-top:1px solid #eee">
-          <div style="font:400 12px/1.5 Arial,sans-serif;color:#9ca3af">Submitted ${esc(new Date().toLocaleString())} · MX-IX — Carrier-Neutral Internet Exchange</div>
+          <div style="font:400 12px/1.5 Arial,sans-serif;color:#9ca3af">Submitted ${esc(new Date().toLocaleString())} · MX-IX — Neutral Internet Exchange</div>
         </td></tr>
       </table>
     </td></tr>

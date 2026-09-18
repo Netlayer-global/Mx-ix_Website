@@ -141,7 +141,7 @@ const LocationsPage: React.FC<LocationsPageProps> = ({ preSelectedLocation }) =>
                 OUR <span className="text-[#F20732]">LOCATIONS</span>
               </h1>
               <p className="text-gray-500 text-base md:text-lg leading-relaxed max-w-xl border-l-2 border-white/10 pl-6">
-                Carrier-neutral points of presence across Asia, the Middle East and beyond — peer once,
+                Neutral points of presence across Asia, the Middle East and beyond — peer once,
                 reach everywhere, with low latency and resilient interconnection.
               </p>
               <div className="grid grid-cols-3 gap-4 mt-10 max-w-lg">
@@ -273,7 +273,7 @@ const LocationsPage: React.FC<LocationsPageProps> = ({ preSelectedLocation }) =>
           <h2 className="text-3xl md:text-4xl font-black tracking-tighter mt-2 mb-10">One fabric, every location</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200">
             {[
-              { icon: Building2, t: 'Carrier & DC neutral', d: 'Connect from any carrier or data center — no lock-in, your choice of provider.' },
+              { icon: Building2, t: 'Fully neutral', d: 'Connect from any provider or data center — no lock-in, your choice.' },
               { icon: Network, t: 'One port, full reach', d: 'A single connection peers you with every network on the exchange. No per-bit fees.' },
               { icon: Zap, t: 'Low latency', d: 'Local interconnection keeps traffic in-region — typically sub-2ms across the fabric.' },
               { icon: ShieldCheck, t: '24/7 NOC + route servers', d: 'Multilateral route servers with RPKI/IRR filtering, monitored around the clock.' },
