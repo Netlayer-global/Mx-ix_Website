@@ -1,6 +1,13 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { CheckCircle2, AlertTriangle, AlertOctagon, Wrench, Loader2, RefreshCw, Activity, Plus, Minus, Search, ArrowLeft, Clock } from 'lucide-react';
-import { statusApi, SystemStatus, ComponentStatus, StatusComponentItem, IncidentItem } from '../services/api';
+import {
+  statusApi,
+  SystemStatus,
+  ComponentStatus,
+  StatusComponentItem,
+  IncidentItem,
+  MaintenanceWindowItem,
+} from '../services/api';
 
 const STATUS_META: Record<ComponentStatus, { label: string; bar: string; text: string; band: string; Icon: React.ElementType }> = {
   operational: { label: 'Operational', bar: 'bg-green-500', text: 'text-green-600', band: 'bg-green-500', Icon: CheckCircle2 },
@@ -79,18 +86,31 @@ const StatusPage: React.FC = () => {
     return () => { document.body.classList.remove('dark-nav'); clearInterval(t); };
   }, [load]);
 
-  // Browser back/forward support for the incident detail view.
-  useEffect(() => {
-    const onPop = () => {
+  // Resolve /status/<id> from the URL — both on a cold load (so a shared
+  // incident link opens the incident, not the index) and on back/forward.
+  const syncFromUrl = useCallback(
+    (incidents?: IncidentItem[]) => {
       const m = window.location.pathname.match(/^\/status\/(.+)$/);
-      if (m && data?.incidents) { const inc = data.incidents.find((i) => i._id === decodeURIComponent(m[1])); setSelected(inc || null); }
-      else setSelected(null);
-    };
+      if (!m) { setSelected(null); return; }
+      const id = decodeURIComponent(m[1]);
+      setSelected((incidents || []).find((i) => i._id === id) || null);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (data?.incidents) syncFromUrl(data.incidents);
+    // Only run when the incident list itself changes, not on every render.
+  }, [data?.incidents, syncFromUrl]);
+
+  useEffect(() => {
+    const onPop = () => syncFromUrl(data?.incidents);
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [data]);
+  }, [data, syncFromUrl]);
 
   const incidents = data?.incidents || [];
+  const maintenance = data?.maintenance || [];
 
   // Build a 60-day status history: real daily snapshots + incident overlay
   const buildBars = useCallback((c: StatusComponentItem) => {
@@ -135,6 +155,8 @@ const StatusPage: React.FC = () => {
   const overallMeta = overall ? STATUS_META[overall.status] : STATUS_META.operational;
   const activeIncidents = incidents.filter((i) => i.status !== 'resolved');
   const pastIncidents = incidents.filter((i) => i.status === 'resolved');
+  const liveMaintenance = maintenance.some((w) => w.state === 'in-progress');
+  const historyDays = data?.historyDays || 90;
 
   const openIncident = (inc: IncidentItem) => {
     setSelected(inc); setPinned(false); setPopup(null);
@@ -196,7 +218,13 @@ const StatusPage: React.FC = () => {
               <div className={`relative overflow-hidden ${overallMeta.band} text-white px-6 py-5 mb-6 flex items-center gap-4`}>
                 <overallMeta.Icon className="w-7 h-7 flex-shrink-0" />
                 <div className="text-xl md:text-2xl font-black tracking-tight">
-                  {activeIncidents.length > 0 ? 'There are ongoing incidents' : overall?.label}
+                  {activeIncidents.length > 0
+                    ? activeIncidents.length === 1
+                      ? 'There is an ongoing incident'
+                      : `There are ${activeIncidents.length} ongoing incidents`
+                    : liveMaintenance
+                    ? 'Maintenance in progress'
+                    : overall?.label}
                 </div>
                 <div className="ml-auto flex items-center gap-3">
                   <span className="font-mono text-label-sm tracking-label uppercase opacity-80 hidden sm:inline">
@@ -256,7 +284,9 @@ const StatusPage: React.FC = () => {
                                 </div>
                                 <div className="flex items-center justify-between mt-1.5 font-mono text-[10px] text-gray-500 uppercase tracking-label">
                                   <span>{DAYS} days ago</span>
-                                  <span>{typeof c.uptime === 'number' ? `${c.uptime}% uptime` : ''}</span>
+                                  <span title={`Operational days as a share of the last ${historyDays} recorded days`}>
+                                    {typeof c.uptime === 'number' ? `${c.uptime}% uptime · ${historyDays}d` : ''}
+                                  </span>
                                   <span>Today</span>
                                 </div>
                               </div>
@@ -271,6 +301,23 @@ const StatusPage: React.FC = () => {
                   <div className="py-12 text-center border border-gray-200 border-dashed font-mono text-xs text-gray-500 uppercase tracking-label">No services match your search.</div>
                 )}
               </div>
+
+              {/* Scheduled maintenance */}
+              {maintenance.length > 0 && (
+                <div className="mt-12">
+                  <div className="mb-4 flex items-center justify-between border-b border-gray-200 pb-2">
+                    <h2 className="font-mono text-label-sm font-bold uppercase tracking-label text-black">
+                      Scheduled Maintenance
+                    </h2>
+                    <span className="font-mono text-[10px] text-gray-500">Next 30 days · your local timezone</span>
+                  </div>
+                  <div className="space-y-4">
+                    {maintenance.map((w) => (
+                      <MaintenanceCard key={w._id} w={w} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Current incidents */}
               {activeIncidents.length > 0 && (
@@ -337,6 +384,50 @@ const StatusPage: React.FC = () => {
             <div className="absolute left-1/2 -bottom-1.5 -translate-x-1/2 w-3 h-3 bg-white border-r border-b border-gray-200 rotate-45"></div>
           </div>
         </>
+      )}
+    </div>
+  );
+};
+
+/**
+ * A scheduled or in-progress maintenance window.
+ *
+ * Planned work used to be invisible here — it only reached the public page if an
+ * admin separately raised an incident with `impact: maintenance`.
+ */
+const MaintenanceCard: React.FC<{ w: MaintenanceWindowItem }> = ({ w }) => {
+  const live = w.state === 'in-progress';
+  return (
+    <div className={`border border-gray-200 border-l-4 p-5 ${live ? 'border-l-blue-500 bg-blue-500/[0.03]' : 'border-l-blue-300'}`}>
+      <div className="mb-2 flex flex-wrap items-start gap-3">
+        <span
+          className={`border px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wider ${
+            live ? 'border-blue-400 text-blue-700' : 'border-blue-300 text-blue-600'
+          }`}
+        >
+          {live ? 'In progress' : 'Scheduled'}
+        </span>
+        <h3 className="flex-1 font-bold text-black">{w.title}</h3>
+      </div>
+
+      <p className="flex items-center gap-1.5 font-mono text-xs text-gray-600">
+        <Clock className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+        {fmtDate(w.scheduledStart)} → {fmtDate(w.scheduledEnd)}
+        <span className="text-gray-400">
+          ({fmtDuration(new Date(w.scheduledStart).getTime(), new Date(w.scheduledEnd).getTime())})
+        </span>
+      </p>
+
+      {w.description && <p className="mt-3 text-sm leading-relaxed text-gray-700">{w.description}</p>}
+
+      {w.affectedComponents?.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3">
+          {w.affectedComponents.map((c) => (
+            <span key={c} className="rounded-full border border-gray-200 px-2.5 py-0.5 font-mono text-[10px] text-gray-500">
+              {c}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );

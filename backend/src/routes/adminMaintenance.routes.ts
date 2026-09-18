@@ -25,6 +25,7 @@ router.get('/windows', mw.listWindows);
 router.get('/windows/upcoming', mw.upcomingWindows);
 router.post('/windows', mw.createWindow);
 router.put('/windows/:id', mw.updateWindow);
+router.post('/windows/:id/notify', mw.renotifyWindow);
 router.delete('/windows/:id', mw.deleteWindow);
 
 export default router;

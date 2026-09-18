@@ -7,10 +7,11 @@ import {
   Port,
   Order,
   Ticket,
-  Subscriber,
 } from '../models';
 import { notify } from '../services/notification.service';
 import { sendBulkEmail } from '../services/mailer.service';
+import { renderEmail, escapeHtml } from '../services/emailLayout';
+import { getPublicUrl } from '../models/settings.model';
 import { logAudit } from '../services/audit.service';
 
 const SPEED_MBPS: Record<string, number> = { '1G': 1000, '10G': 10000, '25G': 25000, '100G': 100000, '400G': 400000 };
@@ -50,7 +51,7 @@ export const createAnnouncement = async (req: Request, res: Response): Promise<v
     const inApp = channels?.inApp !== false;
     const email = !!channels?.email;
     const orgFilter = audience === 'all' ? {} : { status: 'active' };
-    const orgs = await Organization.find(orgFilter).select('_id');
+    const orgs = await Organization.find(orgFilter).select('_id nocEmail');
 
     let recipients = 0;
     if (inApp) {
@@ -66,10 +67,22 @@ export const createAnnouncement = async (req: Request, res: Response): Promise<v
     }
 
     if (email) {
-      const subs = await Subscriber.find().select('email').lean().catch(() => []);
-      const emails = (subs as any[]).map((s) => s.email).filter(Boolean);
+      // Announcements go to MEMBER NOC addresses. They previously went to the
+      // public status-page subscriber list, which is a different audience that
+      // never opted in to operational announcements.
+      const emails = orgs.map((o: any) => o.nocEmail).filter(Boolean);
       if (emails.length) {
-        await sendBulkEmail(emails, `MX-IX: ${title}`, `<h2>${title}</h2><p>${body}</p>`);
+        const publicUrl = await getPublicUrl().catch(() => '');
+        await sendBulkEmail(
+          Array.from(new Set(emails)),
+          `MX-IX: ${title}`,
+          renderEmail({
+            eyebrow: 'Announcement',
+            heading: title,
+            publicUrl,
+            body: `<p style="margin:0;">${escapeHtml(body).replace(/\n/g, '<br />')}</p>`,
+          })
+        );
       }
     }
 

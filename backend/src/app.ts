@@ -65,6 +65,25 @@ const startServer = async () => {
       sendWeeklyDigests().catch((e) => console.error('[Digest] interval error', e));
     }, 7 * 24 * 60 * 60 * 1000);
 
+    // Status-page daily snapshot (every 15 min).
+    //
+    // This used to run inside the public GET /api/status handler, which meant a
+    // day with no page views left no history row at all — and the frontend
+    // renders missing days as operational, so gaps looked green. Running it on a
+    // schedule makes the 90-day history and the uptime % a continuous record.
+    // 15 minutes (not 24h) so a restart can never skip a day, and so a status
+    // change is captured even if it is reverted before the next run.
+    const statusSnapshotTick = async () => {
+      try {
+        const { runStatusSnapshot } = await import('./controllers/status.controller');
+        await runStatusSnapshot();
+      } catch (e) {
+        console.error('[Status] snapshot error', e);
+      }
+    };
+    statusSnapshotTick();
+    setInterval(statusSnapshotTick, 15 * 60 * 1000);
+
     // IRRDB as-set expansion refresh (every 24h, only stale entries).
     // Keeps the prefix filters fresh so route servers don't reject member routes
     // because their as-set expansion expired.

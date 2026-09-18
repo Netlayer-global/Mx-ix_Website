@@ -716,10 +716,43 @@ export interface IncidentItem {
   updatedAt: string;
 }
 
+export type MaintenanceState = 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
+
+export interface MaintenanceWindowItem {
+  _id: string;
+  title: string;
+  description?: string;
+  affectedComponents: string[];
+  affectedMembers?: string[];
+  state: MaintenanceState;
+  scheduledStart: string;
+  scheduledEnd: string;
+  actualStart?: string;
+  actualEnd?: string;
+  notified?: boolean;
+  notifiedAt?: string;
+  notes?: string;
+  createdBy?: string;
+  createdAt?: string;
+}
+
 export interface SystemStatus {
   overall: { status: ComponentStatus; label: string };
   components: StatusComponentItem[];
   incidents: IncidentItem[];
+  /** Scheduled/in-progress windows in the next 30 days. */
+  maintenance: MaintenanceWindowItem[];
+  /** Days of daily history the backend retains. */
+  historyDays: number;
+  generatedAt: string;
+}
+
+export interface StatusSubscriber {
+  id: string;
+  email: string;
+  active: boolean;
+  createdAt: string;
+  unsubscribedAt?: string | null;
 }
 
 // ============================================
@@ -757,7 +790,13 @@ export const statusApi = {
   get: () => apiCall<SystemStatus>('/status'),
   subscribe: (email: string) =>
     apiCall<void>('/status/subscribe', { method: 'POST', body: JSON.stringify({ email }) }),
-  getSubscribers: () => apiCall<{ count: number; subscribers: string[] }>('/status/subscribers'),
+  getSubscribers: () =>
+    apiCall<{ count: number; total: number; subscribers: string[]; all: StatusSubscriber[] }>(
+      '/status/subscribers'
+    ),
+  removeSubscriber: (id: string) => apiCall<void>(`/status/subscribers/${id}`, { method: 'DELETE' }),
+  /** Admin component list — includes components hidden from the public page. */
+  listComponents: () => apiCall<StatusComponentItem[]>('/status/components'),
   createComponent: (data: Partial<StatusComponentItem>) =>
     apiCall<StatusComponentItem>('/status/components', { method: 'POST', body: JSON.stringify(data) }),
   updateComponent: (id: string, data: Partial<StatusComponentItem>) =>
@@ -770,6 +809,41 @@ export const statusApi = {
     apiCall<IncidentItem>(`/status/incidents/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteIncident: (id: string) =>
     apiCall<void>(`/status/incidents/${id}`, { method: 'DELETE' }),
+};
+
+// ── Maintenance windows (admin) ──
+export const adminMaintenanceApi = {
+  list: () => apiCall<MaintenanceWindowItem[]>('/admin/maintenance/windows'),
+  upcoming: () => apiCall<MaintenanceWindowItem[]>('/admin/maintenance/windows/upcoming'),
+  create: (data: {
+    title: string;
+    description?: string;
+    affectedComponents?: string[];
+    affectedMembers?: string[];
+    scheduledStart: string;
+    scheduledEnd: string;
+    notes?: string;
+    /** Set false to schedule without telling members. */
+    notify?: boolean;
+  }) => apiCall<MaintenanceWindowItem>('/admin/maintenance/windows', { method: 'POST', body: JSON.stringify(data) }),
+  update: (
+    id: string,
+    data: Partial<{
+      title: string;
+      description: string;
+      affectedComponents: string[];
+      affectedMembers: string[];
+      scheduledStart: string;
+      scheduledEnd: string;
+      state: MaintenanceState;
+      notes: string;
+      notify: boolean;
+    }>
+  ) => apiCall<MaintenanceWindowItem>(`/admin/maintenance/windows/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  /** Re-send the announcement to affected members. */
+  notify: (id: string) =>
+    apiCall<{ members: number; emailed: number }>(`/admin/maintenance/windows/${id}/notify`, { method: 'POST' }),
+  remove: (id: string) => apiCall<void>(`/admin/maintenance/windows/${id}`, { method: 'DELETE' }),
 };
 
 export default {

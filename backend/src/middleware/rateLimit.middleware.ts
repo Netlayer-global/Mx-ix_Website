@@ -23,3 +23,17 @@ export const apiLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, error: 'Too many requests. Please slow down.' },
 });
+
+/**
+ * Limiter for unauthenticated read endpoints that poll (status page, upcoming
+ * maintenance). Generous enough for a 30-second client refresh across many
+ * browser tabs behind one NAT, tight enough to stop a scraping loop.
+ * 240 requests per minute per IP.
+ */
+export const publicReadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many requests. Please slow down.' },
+});

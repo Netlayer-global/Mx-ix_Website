@@ -139,14 +139,14 @@ const SECTION_META: Record<AdminSection, { title: string; icon: React.ElementTyp
 const NAV_GROUPS: { label: string; items: AdminSection[] }[] = [
   { label: '', items: ['dashboard'] },
   { label: 'Members', items: ['customers', 'orders', 'support', 'noc'] },
-  { label: 'IX Operations', items: ['ixsetup', 'status'] },
+  { label: 'IX Operations', items: ['ixsetup', 'status', 'maintenance'] },
   { label: 'Website', items: ['promo', 'services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'] },
   { label: 'System', items: ['announcements', 'integrations', 'adminusers', 'audit', 'templates'] },
 ];
 
 // Section access by admin role (super-admin/admin see everything).
 const ROLE_ACCESS: Record<string, AdminSection[]> = {
-  noc: ['customers', 'orders', 'support', 'status', 'noc', 'announcements', 'locations', 'ixsetup', 'integrations', 'members'],
+  noc: ['customers', 'orders', 'support', 'status', 'maintenance', 'noc', 'announcements', 'locations', 'ixsetup', 'integrations', 'members'],
   support: ['customers', 'support'],
   billing: ['customers', 'orders'],
   editor: ['promo', 'services', 'locations', 'homepage', 'pagevisibility', 'stats', 'contacts', 'members'],

@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ChevronLeft, Loader2, Plus, Trash2, Activity, AlertTriangle, Save } from 'lucide-react';
+import { ChevronLeft, Loader2, Plus, Trash2, Activity, AlertTriangle, Save, Mail, Eye, EyeOff } from 'lucide-react';
 import {
   statusApi,
   StatusComponentItem,
   IncidentItem,
+  StatusSubscriber,
   ComponentStatus,
   IncidentStatus,
   IncidentImpact,
@@ -25,34 +26,58 @@ const StatusAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
   // new incident form
   const [newInc, setNewInc] = useState({ title: '', impact: 'minor' as IncidentImpact, status: 'investigating' as IncidentStatus, message: '', affectedComponents: [] as string[], startedAt: '', resolvedAt: '' });
   const [subCount, setSubCount] = useState<number | null>(null);
+  const [subscribers, setSubscribers] = useState<StatusSubscriber[]>([]);
+  const [showSubs, setShowSubs] = useState(false);
+  const [error, setError] = useState('');
   // per-incident update drafts
   const [draft, setDraft] = useState<Record<string, { status: IncidentStatus; message: string }>>({});
 
   const load = useCallback(async () => {
-    const res = await statusApi.get();
-    if (res.success && res.data) { setComponents(res.data.components); setIncidents(res.data.incidents); }
-    const subs = await statusApi.getSubscribers();
-    if (subs.success && subs.data) setSubCount(subs.data.count);
+    // The admin component list includes components hidden from the public page.
+    const [comps, res, subs] = await Promise.all([
+      statusApi.listComponents(),
+      statusApi.get(),
+      statusApi.getSubscribers(),
+    ]);
+    if (comps.success && comps.data) setComponents(comps.data);
+    if (res.success && res.data) setIncidents(res.data.incidents);
+    if (subs.success && subs.data) {
+      setSubCount(subs.data.count);
+      setSubscribers(subs.data.all || []);
+    }
     setLoading(false);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const saveComp = async (c: StatusComponentItem, patch: Partial<StatusComponentItem>) => {
+    setError('');
     setComponents((prev) => prev.map((x) => (x._id === c._id ? { ...x, ...patch } : x)));
-    await statusApi.updateComponent(c._id, patch);
+    const res = await statusApi.updateComponent(c._id, patch);
+    if (!res.success) {
+      setError(res.error || 'Could not save the component.');
+      load();
+    } else if (patch.name) {
+      // A rename cascades to incidents and maintenance windows server-side.
+      load();
+    }
   };
   const setCompStatus = async (c: StatusComponentItem, status: ComponentStatus) => saveComp(c, { status });
-  const setCompUptime = async (c: StatusComponentItem, uptime: number) => saveComp(c, { uptime });
   const addComponent = async () => {
     if (!newComp.name.trim()) return;
+    setError('');
     const order = components.length + 1;
     const res = await statusApi.createComponent({ ...newComp, order });
     if (res.success) { setNewComp({ name: '', group: 'Core Services', status: 'operational', description: '' }); load(); }
+    else setError(res.error || 'Could not create the component.');
   };
   const removeComponent = async (id: string) => {
-    if (!confirm('Delete this component?')) return;
+    if (!confirm('Delete this component? It will also be removed from any incident or maintenance window that references it.')) return;
     await statusApi.deleteComponent(id); load();
+  };
+  const removeSubscriber = async (id: string, email: string) => {
+    if (!confirm(`Remove ${email} from status updates?`)) return;
+    await statusApi.removeSubscriber(id); load();
   };
 
   const addIncident = async () => {
@@ -103,20 +128,44 @@ const StatusAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-10">
+        {error && (
+          <p className="rounded border border-[#F20732]/40 bg-[#F20732]/10 px-4 py-3 font-mono text-xs text-[#F20732]">{error}</p>
+        )}
+
         {/* COMPONENTS */}
         <section>
-          <h2 className="text-lg font-bold mb-4">Components</h2>
+          <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-bold">Components</h2>
+            <p className="text-xs text-gray-500">
+              Uptime % is computed from the daily snapshot history — it is read-only. Renaming a component updates every
+              incident and maintenance window that references it.
+            </p>
+          </div>
           <div className="space-y-2">
             {components.map((c) => (
               <div key={c._id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-3">
                 <div className="flex flex-col md:flex-row md:items-center gap-3">
                   <input defaultValue={c.name} onBlur={(e) => saveComp(c, { name: e.target.value })} className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm font-bold" placeholder="Name" />
                   <input defaultValue={c.group} onBlur={(e) => saveComp(c, { group: e.target.value })} className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm w-40" placeholder="Group" />
-                  <select value={c.status} onChange={(e) => setCompStatus(c, e.target.value as ComponentStatus)} className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+                  <select value={c.status} onChange={(e) => setCompStatus(c, e.target.value as ComponentStatus)} className="cursor-pointer bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
                     {COMPONENT_STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
                   </select>
-                  <input type="number" min={0} max={100} step={0.01} defaultValue={c.uptime ?? 100} onBlur={(e) => setCompUptime(c, Number(e.target.value))} className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm w-24" title="Uptime %" />
-                  <button onClick={() => removeComponent(c._id)} className="p-2 text-gray-500 hover:text-[#F20732] transition-colors"><Trash2 className="w-4 h-4" /></button>
+                  <div
+                    className="w-24 rounded border border-gray-700 bg-gray-900 px-3 py-2 text-center text-sm tabular-nums text-gray-300"
+                    title="Uptime is computed from the recorded daily history and cannot be edited"
+                  >
+                    {typeof c.uptime === 'number' ? `${c.uptime}%` : '—'}
+                  </div>
+                  <button
+                    onClick={() => saveComp(c, { isActive: !c.isActive })}
+                    title={c.isActive ? 'Visible on the public status page' : 'Hidden from the public status page'}
+                    className={`cursor-pointer rounded border p-2 transition-colors ${
+                      c.isActive ? 'border-gray-600 text-gray-300 hover:border-gray-400' : 'border-amber-500/40 bg-amber-500/10 text-amber-400'
+                    }`}
+                  >
+                    {c.isActive ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  </button>
+                  <button onClick={() => removeComponent(c._id)} className="cursor-pointer p-2 text-gray-500 hover:text-[#F20732] transition-colors"><Trash2 className="w-4 h-4" /></button>
                 </div>
                 <input defaultValue={c.description || ''} onBlur={(e) => saveComp(c, { description: e.target.value })} className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-xs text-gray-300" placeholder="Description (shown on public status page, optional)" />
               </div>
@@ -232,6 +281,52 @@ const StatusAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
             ))}
             {!incidents.length && <p className="text-gray-500 text-sm">No incidents reported.</p>}
           </div>
+        </section>
+
+        {/* SUBSCRIBERS */}
+        <section>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <Mail className="h-4 w-4 text-[#F20732]" /> Status Subscribers
+            </h2>
+            <button
+              onClick={() => setShowSubs((v) => !v)}
+              className="cursor-pointer rounded border border-gray-600 px-3 py-1.5 text-xs font-bold transition-colors hover:border-gray-400"
+            >
+              {showSubs ? 'Hide list' : `Show list (${subscribers.length})`}
+            </button>
+          </div>
+          <p className="mb-3 text-xs text-gray-500">
+            These addresses receive incident emails. Every message includes a one-click unsubscribe link, so members can
+            opt out themselves — remove an address here only on request.
+          </p>
+
+          {showSubs && (
+            <div className="space-y-2">
+              {subscribers.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-700 bg-gray-800 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <span className="truncate text-sm">{s.email}</span>
+                    <p className="mt-0.5 font-mono text-[10px] uppercase tracking-wider text-gray-500">
+                      {s.active ? 'Subscribed' : 'Unsubscribed'} · joined {new Date(s.createdAt).toLocaleDateString()}
+                      {s.unsubscribedAt ? ` · opted out ${new Date(s.unsubscribedAt).toLocaleDateString()}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => removeSubscriber(s.id, s.email)}
+                    className="cursor-pointer p-1.5 text-gray-500 transition-colors hover:text-[#F20732]"
+                    title="Remove"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {!subscribers.length && <p className="text-sm text-gray-500">No subscribers yet.</p>}
+            </div>
+          )}
         </section>
       </main>
     </div>

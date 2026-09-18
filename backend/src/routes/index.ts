@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import mongoose from 'mongoose';
+import { publicReadLimiter } from '../middleware/rateLimit.middleware';
 import authRoutes from './auth.routes';
 import networkStatsRoutes from './networkStats.routes';
 import globalFabricStatsRoutes from './globalFabricStats.routes';
@@ -38,11 +40,51 @@ import adminIxpImportRoutes from './adminIxpImport.routes';
 
 const router = Router();
 
-// Health check
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'MX-IX Admin API is running',
+/**
+ * Health check — reports real dependency state, not just process liveness.
+ *
+ * Returns 503 when a hard dependency (the database) is unavailable so load
+ * balancers and uptime monitors see the failure instead of a cheerful 200.
+ */
+router.get('/health', async (_req, res) => {
+  const started = Date.now();
+  const checks: Record<string, { ok: boolean; detail?: string; ms?: number }> = {};
+
+  // Database — 1 = connected in Mongoose's readyState enum.
+  const dbState = mongoose.connection.readyState;
+  if (dbState === 1) {
+    try {
+      const t = Date.now();
+      await mongoose.connection.db!.admin().ping();
+      checks.database = { ok: true, ms: Date.now() - t };
+    } catch (err: any) {
+      checks.database = { ok: false, detail: err?.message || 'ping failed' };
+    }
+  } else {
+    const states: Record<number, string> = { 0: 'disconnected', 2: 'connecting', 3: 'disconnecting' };
+    checks.database = { ok: false, detail: states[dbState] || `readyState ${dbState}` };
+  }
+
+  // Soft dependencies: reported, but do not fail the health check.
+  try {
+    const { getEffectiveMail, getEffectiveGrafana } = await import('../models/settings.model');
+    const [mail, grafana] = await Promise.all([
+      getEffectiveMail().catch(() => null),
+      getEffectiveGrafana().catch(() => null),
+    ]);
+    checks.smtp = { ok: !!mail?.configured, detail: mail?.configured ? mail.source : 'not configured' };
+    checks.monitoring = { ok: !!grafana?.enabled, detail: grafana?.enabled ? 'grafana' : 'not configured' };
+  } catch {
+    /* settings unreadable — the database check already covers it */
+  }
+
+  const healthy = checks.database?.ok === true;
+  res.status(healthy ? 200 : 503).json({
+    success: healthy,
+    message: healthy ? 'MX-IX API is healthy' : 'MX-IX API is degraded',
+    checks,
+    uptimeSeconds: Math.round(process.uptime()),
+    responseMs: Date.now() - started,
     timestamp: new Date().toISOString(),
   });
 });
@@ -73,7 +115,7 @@ router.use('/ix-f', ixfExportRoutes);
 
 // Public: upcoming maintenance windows (consumed by portal and status page)
 import { upcomingWindows } from '../controllers/adminMaintenanceWindows.controller';
-router.get('/maintenance/upcoming', upcomingWindows as any);
+router.get('/maintenance/upcoming', publicReadLimiter, upcomingWindows as any);
 router.use('/members', membersRoutes);
 router.use('/portal', portalRoutes);
 router.use('/admin/customers', adminCustomersRoutes);

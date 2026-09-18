@@ -650,7 +650,9 @@ const Footer = ({ setPage, pageVisibility }: { setPage: (p: string) => void, pag
   const resourceLinks: { label: string; page?: string; url?: string; visibilityPage?: string }[] = [
     { label: 'Technical Requirements', page: 'technical' },
     { label: 'Network Stats', page: 'stats' },
-    { label: 'Status Page', url: 'https://status.mx-ix.com', visibilityPage: 'status' },
+    // Internal page, matching the header nav — the external status.mx-ix.com
+    // subdomain is not what this deployment serves.
+    { label: 'Status Page', page: 'status', visibilityPage: 'status' },
     { label: 'Looking Glass', page: 'lg' },
     { label: 'Peering', url: 'https://www.peeringdb.com/org/43398' },
   ];

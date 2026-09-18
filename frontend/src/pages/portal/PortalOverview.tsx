@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, Network, Share2, AlertTriangle, Hash, ArrowRight, Activity, Calendar } from 'lucide-react';
-import { portalApi, PortalOrgInfo, PortalOverview as Overview } from '../../services/api';
+import {
+  portalApi,
+  statusApi,
+  PortalOrgInfo,
+  PortalOverview as Overview,
+  IncidentItem,
+  MaintenanceWindowItem,
+} from '../../services/api';
 import { PageHeading, StatCard, Badge, portStatusTone, impactTone, EmptyState } from './ui';
 
 interface Props {
@@ -64,6 +71,9 @@ const PortalOverview: React.FC<Props> = ({ org, onGoToSection }) => {
         title={`Welcome, ${org.name}`}
         subtitle="A live snapshot of your connection to the MX-IX fabric — ports, peering and anything affecting your service."
       />
+
+      {/* Active incidents affecting the exchange */}
+      <ActiveIncidentBanner />
 
       {/* Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200 mb-10">
@@ -202,14 +212,81 @@ const PortalOverview: React.FC<Props> = ({ org, onGoToSection }) => {
 
 export default PortalOverview;
 
-/** Upcoming maintenance windows (fetched from the public endpoint). */
-const UpcomingMaintenance: React.FC = () => {
-  const [windows, setWindows] = useState<any[]>([]);
+/**
+ * Unresolved incidents, straight from the public status feed.
+ *
+ * Members previously had no in-portal sign that anything was wrong — incidents
+ * only existed on the public status page and in email.
+ */
+const ActiveIncidentBanner: React.FC = () => {
+  const [incidents, setIncidents] = useState<IncidentItem[]>([]);
 
   useEffect(() => {
-    fetch('/api/maintenance/upcoming')
-      .then((r) => r.json())
-      .then((res) => { if (res.success && res.data) setWindows(res.data); })
+    let active = true;
+    const load = () => {
+      statusApi.get().then((res) => {
+        if (!active) return;
+        setIncidents((res.success && res.data ? res.data.incidents : []).filter((i) => i.status !== 'resolved'));
+      });
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => {
+      active = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  if (!incidents.length) return null;
+
+  return (
+    <section className="mb-8 border border-[#F20732]/30 bg-[#F20732]/[0.04]">
+      <div className="flex items-center gap-2 border-b border-[#F20732]/20 px-5 py-3">
+        <AlertTriangle className="h-4 w-4 text-[#F20732]" />
+        <h3 className="font-mono text-label uppercase tracking-label text-ink">
+          {incidents.length === 1 ? 'Active incident' : `${incidents.length} active incidents`}
+        </h3>
+        <a
+          href="/status"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto font-mono text-label-sm uppercase tracking-mono text-[#F20732] hover:underline"
+        >
+          Status page →
+        </a>
+      </div>
+      <div className="divide-y divide-[#F20732]/10">
+        {incidents.map((inc) => {
+          const latest = inc.updates?.[inc.updates.length - 1];
+          return (
+            <div key={inc._id} className="px-5 py-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={impactTone(inc.impact)}>{inc.impact}</Badge>
+                <span className="text-sm font-bold text-ink">{inc.title}</span>
+                <span className="font-mono text-xs uppercase tracking-wider text-gray-500">{inc.status}</span>
+              </div>
+              {latest && <p className="mt-1.5 text-sm text-gray-600">{latest.message}</p>}
+              {inc.affectedComponents?.length > 0 && (
+                <p className="mt-1.5 font-mono text-xs text-gray-500">Affects: {inc.affectedComponents.join(', ')}</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+};
+
+/** Upcoming maintenance windows (fetched from the public endpoint). */
+const UpcomingMaintenance: React.FC = () => {
+  const [windows, setWindows] = useState<MaintenanceWindowItem[]>([]);
+
+  useEffect(() => {
+    statusApi
+      .get()
+      .then((res) => {
+        if (res.success && res.data) setWindows(res.data.maintenance || []);
+      })
       .catch(() => {});
   }, []);
 
