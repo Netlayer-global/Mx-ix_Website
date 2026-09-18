@@ -26,9 +26,9 @@ interface LocationsPageProps {
 type AnyLoc = any;
 
 const FALLBACK_LOCATIONS: AnyLoc[] = [
-  { id: 'del', name: 'New Delhi', country: 'India', continentId: 'asia', region: 'South Asia', status: 'current', latency: '1.6', datacenter: 'NTT Delhi DC', ixName: 'DELIX', peers: 320, capacity: '150', portSpeeds: ['1G', '10G', '100G'], established: '2023', description: 'North India gateway for enterprise and government networks.' },
-  { id: 'bom', name: 'Mumbai', country: 'India', continentId: 'asia', region: 'South Asia', status: 'current', latency: '1.8', datacenter: 'Sify Rabale DC', ixName: 'MBIIX', peers: 340, capacity: '120', portSpeeds: ['1G', '10G', '100G'], established: '2022', description: "India's financial-capital interconnection hub." },
-  { id: 'dxb', name: 'Dubai', country: 'UAE', continentId: 'middle-east', region: 'Middle East', status: 'current', latency: '1.4', datacenter: 'Equinix DX1', ixName: 'UAE-IX', peers: 250, capacity: '180', portSpeeds: ['10G', '100G'], established: '2024', description: 'Premier MENA hub connecting Middle East to the world.' },
+  { id: 'del', name: 'New Delhi', country: 'India', continentId: 'asia', region: 'South Asia', status: 'current', latency: '1.6', datacenter: 'NTT Delhi DC', ixName: 'DELIX', peers: 320, capacity: '150', portSpeeds: ['1G', '10G', '100G', '400G'], established: '2023', description: 'North India gateway for enterprise and government networks.' },
+  { id: 'bom', name: 'Mumbai', country: 'India', continentId: 'asia', region: 'South Asia', status: 'current', latency: '1.8', datacenter: 'Sify Rabale DC', ixName: 'MBIIX', peers: 340, capacity: '120', portSpeeds: ['1G', '10G', '100G', '400G'], established: '2022', description: "India's financial-capital interconnection hub." },
+  { id: 'dxb', name: 'Dubai', country: 'UAE', continentId: 'middle-east', region: 'Middle East', status: 'current', latency: '1.4', datacenter: 'Equinix DX1', ixName: 'UAE-IX', peers: 250, capacity: '180', portSpeeds: ['10G', '100G', '400G'], established: '2024', description: 'Premier MENA hub connecting Middle East to the world.' },
   { id: 'sjc', name: 'Silicon Valley', country: 'USA', continentId: 'north-america', region: 'North America', status: 'upcoming', latency: '-', datacenter: 'Equinix SV1', ixName: 'SJIIX', peers: 0, capacity: '-', portSpeeds: ['10G', '100G', '400G'], established: 'Coming soon', description: 'Upcoming presence in the heart of Silicon Valley.' },
 ];
 
@@ -562,7 +562,7 @@ const LocationDetail: React.FC<{ loc: AnyLoc; onBack: () => void; onRequest: (ci
                   <h3 className="font-mono text-label tracking-label uppercase text-ink mb-3">Port Speeds</h3>
                   <div className="flex flex-wrap gap-2">
                     {portSpeeds.map((s) => (
-                      <span key={s} className="px-3.5 py-1.5 bg-[#FDECEF] border border-[#F20732]/40 font-mono text-label-sm font-bold tracking-mono uppercase text-[#F20732]">{s}</span>
+                      <span key={s} className="px-3.5 py-1.5 bg-gray-100 border border-gray-300 font-mono text-label-sm font-bold tracking-mono uppercase text-ink">{s}</span>
                     ))}
                   </div>
                 </div>

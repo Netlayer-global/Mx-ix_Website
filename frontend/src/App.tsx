@@ -497,7 +497,7 @@ const Navigation = ({ currentPage, setPage, pageVisibility }: { currentPage: str
                         onClick={() => {
                           setPage(item.id);
                         }}
-                        className="block w-full text-left px-4 py-3 text-[10px] font-mono font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-50 hover:text-[#F20732] transition-colors"
+                        className="block w-full text-left px-4 py-3 text-[10px] font-mono font-bold uppercase tracking-wider text-black hover:bg-gray-50 hover:text-[#F20732] transition-colors"
                       >
                         {item.label}
                       </NavLink>
@@ -507,7 +507,7 @@ const Navigation = ({ currentPage, setPage, pageVisibility }: { currentPage: str
                         href={item.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block w-full text-left px-4 py-3 text-[10px] font-mono font-bold uppercase tracking-wider text-gray-700 hover:bg-gray-50 hover:text-[#F20732] transition-colors"
+                        className="block w-full text-left px-4 py-3 text-[10px] font-mono font-bold uppercase tracking-wider text-black hover:bg-gray-50 hover:text-[#F20732] transition-colors"
                       >
                         {item.label}
                       </a>

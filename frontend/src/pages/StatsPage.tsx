@@ -263,46 +263,9 @@ const StatsPage = () => {
   const filteredStats = stats;
   const selectedLoc = locations.find((l) => l.id === selectedCity);
 
-  // Animated Counter
-  const AnimatedCounter: React.FC<{ value: string | number; duration?: number }> = ({ value, duration = 2000 }) => {
-    const [displayValue, setDisplayValue] = useState('0');
-    const elementRef = useRef<HTMLSpanElement>(null);
-    const hasAnimated = useRef(false);
-
-    useEffect(() => {
-      const numericValue = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
-      if (isNaN(numericValue)) {
-        setDisplayValue(value.toString());
-        return;
-      }
-      if (hasAnimated.current) {
-        setDisplayValue(value.toString());
-        return;
-      }
-      const observer = new IntersectionObserver(
-        (entries) => {
-          if (entries[0].isIntersecting && !hasAnimated.current) {
-            hasAnimated.current = true;
-            let start = 0;
-            const increment = numericValue / (duration / 16);
-            const timer = setInterval(() => {
-              start += increment;
-              if (start >= numericValue) {
-                setDisplayValue(value.toString());
-                clearInterval(timer);
-              } else {
-                setDisplayValue(Math.floor(start).toLocaleString());
-              }
-            }, 16);
-          }
-        },
-        { threshold: 0.3 }
-      );
-      if (elementRef.current) observer.observe(elementRef.current);
-      return () => observer.disconnect();
-    }, [value, duration]);
-
-    return <span ref={elementRef}>{displayValue}</span>;
+  // Static value display (no animation — figures shown as-is)
+  const AnimatedCounter: React.FC<{ value: string | number; duration?: number }> = ({ value }) => {
+    return <span>{value.toString()}</span>;
   };
 
   // Traffic Chart (light theme) — axes, gridlines and hover readout
@@ -489,31 +452,6 @@ const StatsPage = () => {
               )}
             </div>
 
-            {/* Live toggle */}
-            <button
-              onClick={() => setIsLive(!isLive)}
-              className={`px-5 py-3 border font-mono text-label-sm font-bold tracking-mono uppercase transition-colors flex items-center gap-3 hover-trigger ${
-                isLive ? 'border-[#F20732] bg-[#F20732]/10 text-[#F20732]' : 'border-white/20 text-white hover:border-white/40'
-              }`}
-            >
-              {isLive && (
-                <span className="relative flex items-center">
-                  <span className="w-2 h-2 bg-[#F20732] rounded-full" />
-                  <span className="w-2 h-2 bg-[#F20732] rounded-full absolute animate-ping" />
-                </span>
-              )}
-              {isLive ? 'Live' : 'Static'}
-            </button>
-
-            {/* Grafana status */}
-            <div className={`px-5 py-3 border font-mono text-label-sm font-bold tracking-mono uppercase flex items-center gap-3 ${
-              grafanaStatus.connected ? 'border-green-500/50 bg-green-500/10 text-green-400' : 'border-amber-500/50 bg-amber-500/10 text-amber-400'
-            }`}>
-              {grafanaStatus.connected ? <Wifi size={15} /> : <WifiOff size={15} />}
-              <span>{grafanaStatus.connected ? 'Grafana connected' : 'Simulated data'}</span>
-              {grafanaStatus.version && <span className="text-[10px] opacity-70">v{grafanaStatus.version}</span>}
-            </div>
-
             {/* Selected location badge */}
             {selectedCity !== 'all' && selectedLoc && (
               <div className="inline-flex items-center gap-3 px-4 py-3 bg-white/5 border border-white/20">
@@ -528,14 +466,14 @@ const StatsPage = () => {
         </div>
       </section>
 
-      {/* Live Grafana traffic cards */}
-      {grafanaStatus.connected && realTraffic && (
+      {/* Aggregate traffic cards */}
+      {realTraffic && (
         <section className="border-b border-gray-200 bg-gray-50">
           <div className="max-w-[1400px] mx-auto px-6 md:px-12 py-10">
-            <span className="eyebrow">Live from Grafana / Zabbix</span>
+            <span className="eyebrow">Network Traffic</span>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-px bg-gray-200 border border-gray-200 mt-4">
               {[
-                { l: 'Live Traffic', v: realTraffic.current, note: 'Aggregate now', icon: <Activity className="w-4 h-4 text-[#F20732]" /> },
+                { l: 'Current Traffic', v: realTraffic.current, note: 'Aggregate now', icon: <Activity className="w-4 h-4 text-[#F20732]" /> },
                 { l: 'Inbound', v: realTraffic.inbound, note: 'Bits received', icon: <ArrowDown className="w-4 h-4 text-green-600" /> },
                 { l: 'Outbound', v: realTraffic.outbound, note: 'Bits sent', icon: <ArrowUp className="w-4 h-4 text-blue-600" /> },
                 { l: `Peak (${RANGE_CAPTION[range].replace('Last ', '')})`, v: realTraffic.peak, note: 'Maximum observed', icon: <Activity className="w-4 h-4 text-ink" /> },
@@ -568,7 +506,7 @@ const StatsPage = () => {
                 <h2 className="mb-2 text-2xl font-black tracking-[-0.04em] md:text-3xl">Traffic Overview</h2>
                 <p className="font-mono text-[11px] uppercase tracking-label text-gray-500">
                   {selectedCity === 'all'
-                    ? `${RANGE_CAPTION[range]} · ${feed?.live ? 'Live from Grafana / Zabbix' : 'Simulated feed'}`
+                    ? `${RANGE_CAPTION[range]}`
                     : `${selectedLoc?.name ?? 'Location'} · Last 24 hours (estimated)`}
                 </p>
               </div>
@@ -706,8 +644,6 @@ const StatsPage = () => {
             ))}
           </div>
           <p className="text-xs text-gray-500 mt-4 font-mono">
-            Figures update {isLive ? `every ${statsConfig.updateInterval / 1000}s` : 'on load'} ·
-            {grafanaStatus.connected ? ' Traffic sourced live from Grafana/Zabbix' : ' Traffic simulated until Grafana is connected'} ·
             Capacity and network counts reflect provisioned ports across all locations.
           </p>
         </div>
