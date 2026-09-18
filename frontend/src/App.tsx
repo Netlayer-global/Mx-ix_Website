@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import Reveal from './components/Reveal';
+import { BrandMark } from './components/BrandMark';
 import PromoBanner from './components/PromoBanner';
 import PromoModal from './components/PromoModal';
 import SectionCorners from './components/SectionCorners';
@@ -1248,23 +1249,26 @@ function AppContent() {
                   </Reveal>
 
                   <Reveal className="lg:col-span-6" delay={120}>
-                    <div className="grid grid-cols-2 gap-px border border-gray-200 bg-gray-200 sm:grid-cols-4">
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                       {['Google', 'Netflix', 'Akamai', 'Microsoft', 'Meta', 'Amazon', 'Cloudflare', 'Apple'].map((n) => (
                         <div
                           key={n}
-                          className="bg-white p-5 text-center font-black tracking-[-0.03em] text-ink transition-colors duration-200 hover:text-brand-red"
+                          className="group flex flex-col items-center gap-2 rounded-xl border border-gray-200 bg-white p-4 transition-all duration-300 hover:border-gray-300 hover:shadow-[0_8px_24px_rgba(0,0,0,0.06)] hover:-translate-y-0.5"
                         >
-                          {n}
+                          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-50 transition-colors duration-300 group-hover:bg-white group-hover:shadow-sm">
+                            <BrandMark name={n} className="h-6 w-6" />
+                          </div>
+                          <span className="text-[13px] font-black tracking-[-0.03em] text-ink">{n}</span>
                         </div>
                       ))}
                     </div>
-                    <div className="mt-px grid grid-cols-1 gap-px border border-gray-200 bg-gray-200 sm:grid-cols-3">
+                    <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                       {[
                         { l: 'Sessions', v: 'One' },
                         { l: 'Per-bit charges', v: 'None' },
                         { l: 'Cached locally', v: 'In-metro' },
                       ].map((s) => (
-                        <div key={s.l} className="bg-white p-5">
+                        <div key={s.l} className="rounded-xl border border-gray-200 bg-white p-5">
                           <span className="font-mono text-[9px] uppercase tracking-label text-gray-500">{s.l}</span>
                           <div className="mt-1.5 text-xl font-light tracking-[-0.04em] text-ink">{s.v}</div>
                         </div>
