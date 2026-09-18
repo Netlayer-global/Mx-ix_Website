@@ -26,24 +26,29 @@ const mapPolicy = (p?: string): 'Open' | 'Selective' | 'Restrictive' => {
  * locations it appears in.
  */
 export async function syncMembersFromLocations(): Promise<{ created: number; updated: number; total: number }> {
-  const locations = await Location.find().select('id name asnList').lean();
+  const locations = await Location.find().lean();
+  console.log(`[MemberSync] Found ${locations.length} locations`);
 
-  // Build a map: asn -> { name, policy, locationIds[] }
-  const byAsn = new Map<number, { name: string; policy: string; locationIds: Set<string> }>();
+  // Build a map: asn -> { name, policy, locationNames[] }
+  const byAsn = new Map<number, { name: string; policy: string; locationNames: Set<string> }>();
 
   for (const loc of locations as any[]) {
-    for (const net of loc.asnList || []) {
-      if (!net.asnNumber) continue;
-      const existing = byAsn.get(net.asnNumber);
+    // Use the location's display name (falls back to id) for readable member locations
+    const locLabel = loc.name || loc.id || 'Unknown';
+    const nets = Array.isArray(loc.asnList) ? loc.asnList : [];
+    console.log(`[MemberSync] Location "${locLabel}" has ${nets.length} connected networks`);
+    for (const net of nets) {
+      const asnNum = Number(net.asnNumber);
+      if (!asnNum || Number.isNaN(asnNum)) continue;
+      const existing = byAsn.get(asnNum);
       if (existing) {
-        existing.locationIds.add(loc.id);
-        // Prefer a non-empty name
+        existing.locationNames.add(locLabel);
         if (!existing.name && net.name) existing.name = net.name;
       } else {
-        byAsn.set(net.asnNumber, {
-          name: net.name || `AS${net.asnNumber}`,
+        byAsn.set(asnNum, {
+          name: net.name || `AS${asnNum}`,
           policy: net.peeringPolicy || 'Open',
-          locationIds: new Set([loc.id]),
+          locationNames: new Set([locLabel]),
         });
       }
     }
@@ -53,14 +58,14 @@ export async function syncMembersFromLocations(): Promise<{ created: number; upd
   let updated = 0;
 
   for (const [asn, info] of byAsn.entries()) {
-    const locations = Array.from(info.locationIds);
+    const locNames = Array.from(info.locationNames);
     const existing = await Member.findOne({ asn });
     if (existing) {
-      // Merge locations (keep any manually-added ones too)
-      const merged = Array.from(new Set([...(existing.locations || []), ...locations]));
+      const merged = Array.from(new Set([...(existing.locations || []), ...locNames]));
       existing.locations = merged;
       existing.peeringPolicy = mapPolicy(info.policy);
       if (!existing.name || existing.name === `AS${asn}`) existing.name = info.name;
+      existing.isActive = true;
       await existing.save();
       updated++;
     } else {
@@ -68,13 +73,14 @@ export async function syncMembersFromLocations(): Promise<{ created: number; upd
         name: info.name,
         asn,
         peeringPolicy: mapPolicy(info.policy),
-        locations,
+        locations: locNames,
         isActive: true,
       });
       created++;
     }
   }
 
+  console.log(`[MemberSync] Done: ${created} created, ${updated} updated, ${byAsn.size} total ASNs`);
   return { created, updated, total: byAsn.size };
 }
 
@@ -83,30 +89,36 @@ export async function syncMembersFromLocations(): Promise<{ created: number; upd
  * Called after a location's asnList is modified.
  */
 export async function syncMembersForLocation(locationId: string): Promise<{ synced: number }> {
-  const loc = await Location.findOne({ id: locationId }).select('id asnList').lean();
-  if (!loc) return { synced: 0 };
+  const loc = await Location.findOne({ id: locationId }).lean();
+  if (!loc) {
+    console.warn(`[MemberSync] Location "${locationId}" not found`);
+    return { synced: 0 };
+  }
+  const locLabel = (loc as any).name || (loc as any).id || 'Unknown';
 
   const asnsInLocation = new Set<number>();
   let synced = 0;
 
   for (const net of (loc as any).asnList || []) {
-    if (!net.asnNumber) continue;
-    asnsInLocation.add(net.asnNumber);
+    const asnNum = Number(net.asnNumber);
+    if (!asnNum || Number.isNaN(asnNum)) continue;
+    asnsInLocation.add(asnNum);
 
-    const existing = await Member.findOne({ asn: net.asnNumber });
+    const existing = await Member.findOne({ asn: asnNum });
     if (existing) {
-      if (!existing.locations.includes(loc.id)) {
-        existing.locations.push(loc.id);
+      if (!existing.locations.includes(locLabel)) {
+        existing.locations.push(locLabel);
       }
       existing.peeringPolicy = mapPolicy(net.peeringPolicy);
-      if (!existing.name || existing.name === `AS${net.asnNumber}`) existing.name = net.name || existing.name;
+      if (!existing.name || existing.name === `AS${asnNum}`) existing.name = net.name || existing.name;
+      existing.isActive = true;
       await existing.save();
     } else {
       await Member.create({
-        name: net.name || `AS${net.asnNumber}`,
-        asn: net.asnNumber,
+        name: net.name || `AS${asnNum}`,
+        asn: asnNum,
         peeringPolicy: mapPolicy(net.peeringPolicy),
-        locations: [loc.id],
+        locations: [locLabel],
         isActive: true,
       });
     }
@@ -114,14 +126,15 @@ export async function syncMembersForLocation(locationId: string): Promise<{ sync
   }
 
   // Remove this location from members whose ASN is no longer in the location
-  const membersWithLocation = await Member.find({ locations: loc.id });
+  const membersWithLocation = await Member.find({ locations: locLabel });
   for (const m of membersWithLocation) {
     if (m.asn && !asnsInLocation.has(m.asn)) {
-      m.locations = m.locations.filter((l) => l !== loc.id);
+      m.locations = m.locations.filter((l) => l !== locLabel);
       await m.save();
     }
   }
 
+  console.log(`[MemberSync] Location "${locLabel}": synced ${synced} networks`);
   return { synced };
 }
 
