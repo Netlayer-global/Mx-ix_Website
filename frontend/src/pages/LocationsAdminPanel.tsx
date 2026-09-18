@@ -668,27 +668,39 @@ const LocationsAdminPanel: React.FC<LocationsAdminPanelProps> = ({ embedded = fa
                       return (
                         <div key={idx} className="bg-slate-900 p-3 rounded text-sm space-y-2">
                           {/* Row 1: ASN + name + remove */}
-                          <div className="flex gap-2 items-center">
-                            <input
-                              type="number"
-                              placeholder="ASN"
-                              value={asn.asnNumber || ''}
-                              onChange={e => {
-                                const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                                patch('asnNumber', isNaN(val) ? 0 : val);
+                          <div className="flex gap-2 items-end">
+                            <div className="w-24 shrink-0">
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">ASN</label>
+                              <input
+                                type="number"
+                                placeholder="15169"
+                                value={asn.asnNumber || ''}
+                                onChange={e => {
+                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                  patch('asnNumber', isNaN(val) ? 0 : val);
+                                }}
+                                className={inputCls}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Network name</label>
+                              <input
+                                placeholder="e.g. Google"
+                                value={asn.name || ''}
+                                onChange={e => patch('name', e.target.value)}
+                                className={inputCls}
+                              />
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newAsns = editingLocation.asnList.filter((_, i) => i !== idx);
+                                setEditingLocation({ ...editingLocation, asnList: newAsns });
                               }}
-                              className={`${inputCls} w-24`}
-                            />
-                            <input
-                              placeholder="Network name"
-                              value={asn.name}
-                              onChange={e => patch('name', e.target.value)}
-                              className={`${inputCls} flex-1`}
-                            />
-                            <button onClick={() => {
-                              const newAsns = editingLocation.asnList.filter((_, i) => i !== idx);
-                              setEditingLocation({ ...editingLocation, asnList: newAsns });
-                            }} className="text-red-400 shrink-0" title="Remove"><X size={14} /></button>
+                              className="text-red-400 hover:text-red-300 shrink-0 p-1.5"
+                              title="Remove network"
+                            >
+                              <X size={14} />
+                            </button>
                           </div>
 
                           {/* Row 2: type + capacity */}
