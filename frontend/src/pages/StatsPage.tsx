@@ -603,7 +603,7 @@ const StatsPage = () => {
                     </span>
                   )}
                 </div>
-                <div className="text-5xl md:text-6xl font-light tracking-tighter text-ink group-hover:text-[#F20732] transition-colors mb-2 tabular-nums">
+                <div className="text-4xl md:text-5xl font-light tracking-tighter text-ink group-hover:text-[#F20732] transition-colors mb-2 tabular-nums truncate">
                   <AnimatedCounter value={formatStatValue(stat)} />
                 </div>
                 <div className="flex items-center justify-between">

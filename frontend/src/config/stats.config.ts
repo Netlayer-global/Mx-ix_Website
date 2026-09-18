@@ -175,17 +175,19 @@ export const fetchNetworkStats = async (): Promise<NetworkStat[]> => {
 // Function to format stat values
 export const formatStatValue = (stat: NetworkStat): string => {
   if (typeof stat.value === 'string') return stat.value;
-  
+
   switch (stat.format) {
     case 'decimal':
-      return stat.value.toFixed(stat.value < 10 ? 1 : 0);
+      // One decimal below 10, otherwise a whole number with thousands separators.
+      return stat.value < 10
+        ? stat.value.toFixed(1)
+        : Math.round(stat.value).toLocaleString();
     case 'percentage':
       return stat.value.toFixed(2);
     case 'number':
     default:
-      return stat.value >= 1000 
-        ? stat.value.toLocaleString()
-        : stat.value.toString();
+      // Counts are always whole numbers — never surface raw float noise.
+      return Math.round(stat.value).toLocaleString();
   }
 };
 
