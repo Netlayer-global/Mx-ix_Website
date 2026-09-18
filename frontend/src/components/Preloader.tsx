@@ -52,15 +52,19 @@ const Preloader: React.FC = () => {
       <div className="absolute w-[420px] h-[420px] rounded-full bg-[#F20732]/[0.07] blur-[120px]" />
 
       {/* Brand lockup — matches the site header */}
-      <div className="relative flex items-center gap-2">
+      <div className="relative flex items-center gap-px">
         <img
           src="/assets/logo-mark.png"
           alt="MX-IX"
           width="56"
           height="56"
-          className="w-12 h-12 sm:w-14 sm:h-14 object-contain"
+          className="w-12 h-12 sm:w-14 sm:h-14 shrink-0 object-contain"
         />
-        <span className="text-3xl sm:text-4xl font-black tracking-tighter leading-none text-white">MX-IX</span>
+        <span className="flex items-center text-3xl sm:text-4xl font-black leading-none tracking-[-0.04em] text-white">
+          MX
+          <span aria-hidden="true" className="mx-[0.07em] h-[0.1em] w-[0.4em] rounded-[1px] bg-current" />
+          IX
+        </span>
       </div>
 
       {/* Divider */}
