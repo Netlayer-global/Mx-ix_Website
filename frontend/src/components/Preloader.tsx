@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 
 /**
- * Preloader — a clean, static entry screen matching the site header brand lockup.
- * No motion beyond the progress fill. Runs once per session and is skipped
- * for reduced-motion users.
+ * Preloader — a clean entry screen matching the site header brand lockup.
+ * Static composition with a soft brand glow; the only motion is the
+ * progress fill. Runs once per session, skipped for reduced-motion users.
  */
 const Preloader: React.FC = () => {
   const [progress, setProgress] = useState(0);
@@ -29,7 +29,7 @@ const Preloader: React.FC = () => {
         value = 100;
         clearInterval(interval);
         setProgress(100);
-        setTimeout(() => setDone(true), 300);
+        setTimeout(() => setDone(true), 320);
         setTimeout(() => setRemoved(true), 1000);
       } else {
         setProgress(value);
@@ -48,8 +48,11 @@ const Preloader: React.FC = () => {
       }`}
       aria-hidden="true"
     >
+      {/* Soft brand glow behind the lockup */}
+      <div className="absolute w-[420px] h-[420px] rounded-full bg-[#F20732]/[0.07] blur-[120px]" />
+
       {/* Brand lockup — matches the site header */}
-      <div className="flex items-center gap-2">
+      <div className="relative flex items-center gap-2">
         <img
           src="/assets/logo-mark.png"
           alt="MX-IX"
@@ -60,17 +63,24 @@ const Preloader: React.FC = () => {
         <span className="text-3xl sm:text-4xl font-black tracking-tighter leading-none text-white">MX-IX</span>
       </div>
 
+      {/* Divider */}
+      <div className="relative mt-8 w-16 h-[1px] bg-white/10" />
+
       {/* Progress */}
-      <div className="mt-10 w-56 h-[2px] bg-white/10 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-[#F20732] rounded-full transition-[width] duration-150 ease-out"
-          style={{ width: `${progress}%` }}
-        />
+      <div className="relative mt-8 w-60">
+        <div className="h-[2px] bg-white/[0.08] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-[#F20732] rounded-full transition-[width] duration-150 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
       </div>
 
-      {/* Percentage */}
-      <div className="mt-4 font-mono text-[11px] tracking-[0.25em] uppercase text-white/35 tabular-nums">
-        {Math.round(progress)}%
+      {/* Status */}
+      <div className="relative mt-5 flex items-center gap-3 font-mono text-[10px] tracking-[0.3em] uppercase">
+        <span className="text-white/30">Internet Exchange</span>
+        <span className="w-px h-3 bg-white/15" />
+        <span className="text-white/50 tabular-nums">{String(Math.round(progress)).padStart(2, '0')}%</span>
       </div>
     </div>
   );
