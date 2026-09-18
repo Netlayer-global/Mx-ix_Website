@@ -62,7 +62,7 @@ const Preloader: React.FC = () => {
         />
         <span className="flex items-center text-3xl sm:text-4xl font-black leading-none tracking-[-0.04em] text-white">
           MX
-          <span aria-hidden="true" className="mx-[0.07em] h-[0.1em] w-[0.4em] rounded-[1px] bg-current" />
+          <span aria-hidden="true" className="mx-[0.06em] h-[0.17em] w-[0.4em] rounded-[1px] bg-current" />
           IX
         </span>
       </div>
