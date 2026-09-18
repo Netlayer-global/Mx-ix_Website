@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Blackhole } from '../models';
 import { deployAll } from '../services/birdDeploy.service';
+import { parsePaging, pageMeta } from '../utils/pagination';
 
 /**
  * After any blackhole change, trigger a route-server config rebuild.
@@ -38,8 +39,13 @@ const isValidCidr = (cidr: string): boolean => {
 
 export const listBlackholes = async (req: Request, res: Response): Promise<void> => {
   try {
-    const items = await Blackhole.find({ organization: req.organization!._id }).sort({ createdAt: -1 }).lean();
-    res.json({ success: true, data: items });
+    const paging = parsePaging(req.query, { defaultPageSize: 50 });
+    const filter = { organization: req.organization!._id };
+    const [items, total] = await Promise.all([
+      Blackhole.find(filter).sort({ createdAt: -1 }).skip(paging.skip).limit(paging.limit).lean(),
+      Blackhole.countDocuments(filter),
+    ]);
+    res.json({ success: true, data: items, meta: pageMeta(total, paging) });
   } catch (error) {
     console.error('List blackholes error:', error);
     res.status(500).json({ success: false, error: 'Failed to load blackholes.' });

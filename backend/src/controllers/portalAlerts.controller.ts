@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AlertRule, Port } from '../models';
 import { evaluateRule } from '../services/alert.service';
+import { parsePaging, pageMeta } from '../utils/pagination';
 
 const sanitizeChannels = (c: any) => ({
   email: Array.isArray(c?.email) ? c.email.map((e: string) => String(e).trim()).filter(Boolean) : [],
@@ -10,8 +11,13 @@ const sanitizeChannels = (c: any) => ({
 
 export const listAlerts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const rules = await AlertRule.find({ organization: req.organization!._id }).sort({ createdAt: -1 }).lean();
-    res.json({ success: true, data: rules });
+    const paging = parsePaging(req.query, { defaultPageSize: 50 });
+    const filter = { organization: req.organization!._id };
+    const [rules, total] = await Promise.all([
+      AlertRule.find(filter).sort({ createdAt: -1 }).skip(paging.skip).limit(paging.limit).lean(),
+      AlertRule.countDocuments(filter),
+    ]);
+    res.json({ success: true, data: rules, meta: pageMeta(total, paging) });
   } catch (error) {
     console.error('List alerts error:', error);
     res.status(500).json({ success: false, error: 'Failed to load alerts.' });

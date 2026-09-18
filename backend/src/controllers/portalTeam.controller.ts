@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PortalUser } from '../models';
 import { PortalRole } from '../models/portalUser.model';
+import { parsePaging, pageMeta } from '../utils/pagination';
 
 const ROLES: PortalRole[] = ['admin', 'viewer', 'billing'];
 
@@ -20,8 +21,13 @@ const publicUser = (u: any) => ({
  */
 export const listTeam = async (req: Request, res: Response): Promise<void> => {
   try {
-    const users = await PortalUser.find({ organization: req.organization!._id }).sort({ createdAt: 1 });
-    res.json({ success: true, data: users.map(publicUser) });
+    const paging = parsePaging(req.query, { defaultPageSize: 100 });
+    const filter = { organization: req.organization!._id };
+    const [users, total] = await Promise.all([
+      PortalUser.find(filter).sort({ createdAt: 1 }).skip(paging.skip).limit(paging.limit),
+      PortalUser.countDocuments(filter),
+    ]);
+    res.json({ success: true, data: users.map(publicUser), meta: pageMeta(total, paging) });
   } catch (error) {
     console.error('List team error:', error);
     res.status(500).json({ success: false, error: 'Failed to load team.' });

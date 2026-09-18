@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Ticket } from '../models';
 import { TicketCategory, TicketPriority } from '../models/ticket.model';
+import { parsePaging, pageMeta } from '../utils/pagination';
 
 const CATEGORIES: TicketCategory[] = ['technical', 'billing', 'peering', 'provisioning', 'general'];
 const PRIORITIES: TicketPriority[] = ['low', 'normal', 'high', 'urgent'];
@@ -10,10 +11,26 @@ const PRIORITIES: TicketPriority[] = ['low', 'normal', 'high', 'urgent'];
  */
 export const listTickets = async (req: Request, res: Response): Promise<void> => {
   try {
-    const tickets = await Ticket.find({ organization: req.organization!._id })
-      .sort({ lastReplyAt: -1 })
-      .lean();
-    res.json({ success: true, data: tickets });
+    const paging = parsePaging(req.query, { defaultPageSize: 25 });
+    const status = String(req.query.status || '').trim();
+    const filter: Record<string, unknown> = { organization: req.organization!._id };
+    if (['open', 'pending', 'closed'].includes(status)) filter.status = status;
+
+    // The message array is replaced by a count in the list view — it's only
+    // needed on the detail view, and long threads make list payloads huge.
+    const [tickets, total] = await Promise.all([
+      Ticket.aggregate([
+        { $match: filter },
+        { $sort: { lastReplyAt: -1 } },
+        { $skip: paging.skip },
+        { $limit: paging.limit },
+        { $addFields: { messageCount: { $size: { $ifNull: ['$messages', []] } } } },
+        { $project: { messages: 0 } },
+      ]),
+      Ticket.countDocuments(filter),
+    ]);
+
+    res.json({ success: true, data: tickets, meta: pageMeta(total, paging) });
   } catch (error) {
     console.error('List tickets error:', error);
     res.status(500).json({ success: false, error: 'Failed to load tickets.' });
@@ -25,12 +42,27 @@ export const listTickets = async (req: Request, res: Response): Promise<void> =>
  */
 export const getTicket = async (req: Request, res: Response): Promise<void> => {
   try {
-    const ticket = await Ticket.findOne({ _id: req.params.id, organization: req.organization!._id });
+    const ticket = await Ticket.findOne({ _id: req.params.id, organization: req.organization!._id }).lean();
     if (!ticket) {
       res.status(404).json({ success: false, error: 'Ticket not found.' });
       return;
     }
-    res.json({ success: true, data: ticket });
+
+    // Long threads are trimmed to the most recent messages; `messageCount` lets
+    // the UI say how many older ones exist.
+    const all = ticket.messages || [];
+    const limit = Math.min(500, Math.max(10, parseInt(String(req.query.messages || '100'), 10) || 100));
+    const trimmed = all.length > limit ? all.slice(all.length - limit) : all;
+
+    res.json({
+      success: true,
+      data: {
+        ...ticket,
+        messages: trimmed,
+        messageCount: all.length,
+        messagesTruncated: trimmed.length < all.length,
+      },
+    });
   } catch (error) {
     console.error('Get ticket error:', error);
     res.status(500).json({ success: false, error: 'Failed to load ticket.' });

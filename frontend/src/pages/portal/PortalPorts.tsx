@@ -12,7 +12,7 @@ const PortalPorts: React.FC = () => {
   useEffect(() => {
     let active = true;
     (async () => {
-      const res = await portalApi.getPorts();
+      const res = await portalApi.getPorts({ pageSize: 200 });
       if (active && res.success && res.data) setPorts(res.data);
       if (active) setLoading(false);
     })();

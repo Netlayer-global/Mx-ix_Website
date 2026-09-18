@@ -24,7 +24,7 @@ const PortalOverview: React.FC<Props> = ({ org, onGoToSection }) => {
     // Peering sessions load independently: Alice-LG can be slow, so we never
     // block the dashboard on it — this card fills in when the data arrives.
     (async () => {
-      const res = await portalApi.getPeeringSessions();
+      const res = await portalApi.getPeeringSessions({ pageSize: 200 });
       if (!active) return;
       if (res.success && res.data) {
         const sessions = res.data.sessions || [];

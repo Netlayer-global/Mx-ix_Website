@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2, Receipt, FileText, AlertCircle } from 'lucide-react';
-import { portalBillingApi, InvoiceItem } from '../../services/api';
-import { PageHeading, Badge, EmptyState } from './ui';
+import { portalBillingApi, InvoiceItem, PageMeta } from '../../services/api';
+import { PageHeading, Badge, EmptyState, Pager } from './ui';
 
 const invoiceTone = (status: string) => {
   const s = status.toLowerCase();
@@ -18,20 +18,28 @@ const PortalBilling: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState('');
+  const [meta, setMeta] = useState<PageMeta | undefined>();
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
+    let active = true;
     (async () => {
-      const res = await portalBillingApi.listInvoices();
+      const res = await portalBillingApi.listInvoices({ page });
+      if (!active) return;
       if (res.success && res.data) {
         setConfigured(res.data.configured);
         setLinked(res.data.linked);
         setInvoices(res.data.invoices);
+        setMeta(res.data.meta);
       } else {
         setError(res.error || 'Failed to load invoices.');
       }
       setLoading(false);
     })();
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [page]);
 
   const openPdf = async (id: string) => {
     setDownloading(id);
@@ -118,6 +126,7 @@ const PortalBilling: React.FC = () => {
               ))}
             </tbody>
           </table>
+          <Pager meta={meta} onPage={setPage} label="invoices" />
         </div>
       ) : (
         <EmptyState icon={<Receipt className="w-10 h-10" />} title="No invoices yet" />

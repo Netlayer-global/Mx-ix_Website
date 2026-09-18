@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Loader2, LifeBuoy, Plus, Send, ArrowLeft, X, MessageSquare } from 'lucide-react';
-import { portalTicketsApi, TicketItem, TicketCategory, TicketPriority } from '../../services/api';
-import { PageHeading, Badge, EmptyState } from './ui';
+import { portalTicketsApi, TicketItem, TicketCategory, TicketPriority, PageMeta } from '../../services/api';
+import { PageHeading, Badge, EmptyState, Pager } from './ui';
 
 const CATEGORIES: TicketCategory[] = ['technical', 'billing', 'peering', 'provisioning', 'general'];
 const PRIORITIES: TicketPriority[] = ['low', 'normal', 'high', 'urgent'];
@@ -12,6 +12,8 @@ const priorityTone = (p: string) => (p === 'urgent' ? 'red' : p === 'high' ? 'or
 
 const PortalSupport: React.FC = () => {
   const [tickets, setTickets] = useState<TicketItem[]>([]);
+  const [meta, setMeta] = useState<PageMeta | undefined>();
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'new' | 'thread'>('list');
   const [active, setActive] = useState<TicketItem | null>(null);
@@ -26,15 +28,18 @@ const PortalSupport: React.FC = () => {
   // reply
   const [reply, setReply] = useState('');
 
-  const load = useCallback(async () => {
-    const res = await portalTicketsApi.list();
-    if (res.success && res.data) setTickets(res.data);
+  const load = useCallback(async (p = page) => {
+    const res = await portalTicketsApi.list({ page: p });
+    if (res.success && res.data) {
+      setTickets(res.data);
+      setMeta(res.meta);
+    }
     setLoading(false);
-  }, []);
+  }, [page]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(page);
+  }, [page, load]);
 
   const openThread = async (id: string) => {
     const res = await portalTicketsApi.get(id);
@@ -129,8 +134,14 @@ const PortalSupport: React.FC = () => {
           )}
         </div>
 
+        {active.messagesTruncated && (
+          <p className="mb-4 border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            Showing the most recent {active.messages?.length ?? 0} of {active.messageCount} messages on this thread.
+          </p>
+        )}
+
         <div className="space-y-3 mb-6">
-          {active.messages.map((m, i) => (
+          {(active.messages || []).map((m, i) => (
             <div
               key={i}
               className={`border p-4 ${
@@ -245,12 +256,13 @@ const PortalSupport: React.FC = () => {
                 </p>
               </div>
               <span className="flex items-center gap-1 text-gray-500 font-mono text-xs">
-                <MessageSquare className="w-3.5 h-3.5" /> {t.messages.length}
+                <MessageSquare className="w-3.5 h-3.5" /> {t.messageCount ?? t.messages?.length ?? 0}
               </span>
               <Badge tone={priorityTone(t.priority)}>{t.priority}</Badge>
               <Badge tone={statusTone(t.status)}>{t.status}</Badge>
             </button>
           ))}
+          <Pager meta={meta} onPage={setPage} label="tickets" />
         </div>
       ) : (
         <EmptyState icon={<LifeBuoy className="w-10 h-10" />} title="No tickets yet" hint="Open a ticket and we'll get back to you." />

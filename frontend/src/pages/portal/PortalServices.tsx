@@ -8,8 +8,9 @@ import {
   OrderType,
   OrderStatus,
   PortItem,
+  PageMeta,
 } from '../../services/api';
-import { PageHeading, Badge, EmptyState } from './ui';
+import { PageHeading, Badge, EmptyState, Pager } from './ui';
 
 const statusTone = (s: OrderStatus) =>
   s === 'completed'
@@ -30,6 +31,8 @@ const PortalServices: React.FC = () => {
   const [catalog, setCatalog] = useState<OrderCatalog | null>(null);
   const [ports, setPorts] = useState<PortItem[]>([]);
   const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [ordersMeta, setOrdersMeta] = useState<PageMeta | undefined>();
+  const [ordersPage, setOrdersPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<OrderType>('new_port');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -43,11 +46,11 @@ const PortalServices: React.FC = () => {
   const [addon, setAddon] = useState('');
   const [notes, setNotes] = useState('');
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (page = ordersPage) => {
     const [c, p, o] = await Promise.all([
       portalOrdersApi.getCatalog(),
-      portalApi.getPorts(),
-      portalOrdersApi.list(),
+      portalApi.getPorts({ pageSize: 200 }),
+      portalOrdersApi.list({ page }),
     ]);
     if (c.success && c.data) {
       setCatalog(c.data);
@@ -59,13 +62,16 @@ const PortalServices: React.FC = () => {
       setPorts(p.data);
       setPortId(p.data[0]?._id || '');
     }
-    if (o.success && o.data) setOrders(o.data);
+    if (o.success && o.data) {
+      setOrders(o.data);
+      setOrdersMeta(o.meta);
+    }
     setLoading(false);
-  }, []);
+  }, [ordersPage]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(ordersPage);
+  }, [ordersPage, load]);
 
   const submit = async () => {
     setError('');
@@ -312,6 +318,11 @@ const PortalServices: React.FC = () => {
               </div>
             );
           })}
+          {ordersMeta && ordersMeta.totalPages > 1 && (
+            <div className="bg-white border border-gray-200">
+              <Pager meta={ordersMeta} onPage={setOrdersPage} label="orders" />
+            </div>
+          )}
         </div>
       ) : (
         <EmptyState icon={<ShoppingCart className="w-8 h-8" />} title="No orders yet" hint="Submit your first order above." />

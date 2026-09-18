@@ -756,11 +756,37 @@ export default {
 // ============================================
 export const PORTAL_TOKEN_KEY = 'mx-ix-portal-token';
 
+/** Pagination window returned alongside every bounded portal list. */
+export interface PageMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+export interface PageQuery {
+  page?: number;
+  pageSize?: number;
+  /** Free-text search, where the endpoint supports it. */
+  q?: string;
+}
+
+/** Serialise a page query into a query string (leading `?` when non-empty). */
+export const pageQuery = (p: PageQuery = {}): string => {
+  const params = new URLSearchParams();
+  if (p.page && p.page > 1) params.set('page', String(p.page));
+  if (p.pageSize) params.set('pageSize', String(p.pageSize));
+  if (p.q) params.set('q', p.q);
+  const s = params.toString();
+  return s ? `?${s}` : '';
+};
+
 // Portal API helper — uses the customer token, never the admin token.
 async function portalApiCall<T>(
   endpoint: string,
   options: RequestInit = {}
-): Promise<{ success: boolean; data?: T; error?: string; message?: string }> {
+): Promise<{ success: boolean; data?: T; meta?: PageMeta; error?: string; message?: string }> {
   try {
     const token = localStorage.getItem(PORTAL_TOKEN_KEY);
     const headers: HeadersInit = {
@@ -918,9 +944,11 @@ export const portalApi = {
 
   // Data
   getOverview: () => portalApiCall<PortalOverview>('/portal/overview'),
-  getPorts: () => portalApiCall<PortItem[]>('/portal/ports'),
-  getPeeringSessions: () =>
-    portalApiCall<{ asns: number[]; sessions: PortalSession[]; lgReachable: boolean }>('/portal/peering/sessions'),
+  getPorts: (p?: PageQuery) => portalApiCall<PortItem[]>(`/portal/ports${pageQuery(p)}`),
+  getPeeringSessions: (p?: PageQuery) =>
+    portalApiCall<{ asns: number[]; sessions: PortalSession[]; lgReachable: boolean; meta: PageMeta }>(
+      `/portal/peering/sessions${pageQuery(p)}`
+    ),
   getPeeringRoutes: (
     rsId: string,
     neighborId: string,
@@ -1074,7 +1102,7 @@ export interface TeamMember {
 }
 
 export const portalTeamApi = {
-  list: () => portalApiCall<TeamMember[]>('/portal/team'),
+  list: (p?: PageQuery) => portalApiCall<TeamMember[]>(`/portal/team${pageQuery(p)}`),
   add: (data: { name: string; email: string; password: string; role: PortalRole }) =>
     portalApiCall<TeamMember>('/portal/team', { method: 'POST', body: JSON.stringify(data) }),
   update: (userId: string, data: { role?: PortalRole; isActive?: boolean }) =>
@@ -1119,9 +1147,10 @@ export const portalPeeringApi = {
   getPolicy: () => portalApiCall<PeeringPolicyInfo>('/portal/peering/policy'),
   updatePolicy: (data: { peeringPolicy?: string; peeringPolicyUrl?: string; peeringNotes?: string }) =>
     portalApiCall<PeeringPolicyInfo>('/portal/peering/policy', { method: 'PUT', body: JSON.stringify(data) }),
-  getNetworks: () => portalApiCall<PeerNetwork[]>('/portal/peering/networks'),
-  getMarketplace: () => portalApiCall<MarketplaceNetwork[]>('/portal/peering/marketplace'),
-  listRequests: () => portalApiCall<PeeringRequestItem[]>('/portal/peering/requests'),
+  getNetworks: (p?: PageQuery) => portalApiCall<PeerNetwork[]>(`/portal/peering/networks${pageQuery(p)}`),
+  getMarketplace: (p?: PageQuery) =>
+    portalApiCall<MarketplaceNetwork[]>(`/portal/peering/marketplace${pageQuery(p)}`),
+  listRequests: (p?: PageQuery) => portalApiCall<PeeringRequestItem[]>(`/portal/peering/requests${pageQuery(p)}`),
   createRequest: (data: { toAsn: number; toName?: string; message?: string; locations?: string[] }) =>
     portalApiCall<{ id: string; linkedToMember: boolean }>('/portal/peering/requests', {
       method: 'POST',
@@ -1190,7 +1219,7 @@ export interface AlertRuleItem {
 }
 
 export const portalAlertsApi = {
-  list: () => portalApiCall<AlertRuleItem[]>('/portal/alerts'),
+  list: (p?: PageQuery) => portalApiCall<AlertRuleItem[]>(`/portal/alerts${pageQuery(p)}`),
   create: (data: Partial<AlertRuleItem>) => portalApiCall<AlertRuleItem>('/portal/alerts', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<AlertRuleItem>) =>
     portalApiCall<AlertRuleItem>(`/portal/alerts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -1210,7 +1239,7 @@ export interface BlackholeItem {
 }
 
 export const portalBlackholeApi = {
-  list: () => portalApiCall<BlackholeItem[]>('/portal/blackholes'),
+  list: (p?: PageQuery) => portalApiCall<BlackholeItem[]>(`/portal/blackholes${pageQuery(p)}`),
   create: (data: { prefix: string; description?: string; expiresAt?: string }) =>
     portalApiCall<BlackholeItem>('/portal/blackholes', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: { active?: boolean; description?: string; expiresAt?: string | null }) =>
@@ -1382,7 +1411,7 @@ export interface OrderCatalog {
 
 export const portalOrdersApi = {
   getCatalog: () => portalApiCall<OrderCatalog>('/portal/orders/catalog'),
-  list: () => portalApiCall<OrderItem[]>('/portal/orders'),
+  list: (p?: PageQuery) => portalApiCall<OrderItem[]>(`/portal/orders${pageQuery(p)}`),
   create: (data: {
     type: OrderType;
     location?: string;
@@ -1418,8 +1447,10 @@ export interface InvoiceItem {
 }
 
 export const portalBillingApi = {
-  listInvoices: () =>
-    portalApiCall<{ configured: boolean; linked: boolean; invoices: InvoiceItem[] }>('/portal/billing/invoices'),
+  listInvoices: (p?: PageQuery) =>
+    portalApiCall<{ configured: boolean; linked: boolean; invoices: InvoiceItem[]; meta: PageMeta }>(
+      `/portal/billing/invoices${pageQuery(p)}`
+    ),
   // Fetches the PDF with the portal token and opens it in a new tab.
   openInvoicePdf: async (invoiceId: string): Promise<boolean> => {
     const token = localStorage.getItem(PORTAL_TOKEN_KEY);
@@ -1456,7 +1487,8 @@ export interface TicketItem {
   category: TicketCategory;
   priority: TicketPriority;
   status: TicketStatus;
-  messages: TicketMessage[];
+  /** Omitted on list responses — fetch the ticket to get the thread. */
+  messages?: TicketMessage[];
   assignedTo?: string;
   createdBy?: string;
   lastReplyAt: string;
@@ -1465,11 +1497,17 @@ export interface TicketItem {
   // admin-enriched
   orgName?: string;
   orgAsn?: number;
+  /** Total messages on the thread, present even when `messages` is omitted. */
   messageCount?: number;
+  /** True when only the most recent messages were returned. */
+  messagesTruncated?: boolean;
 }
 
 export const portalTicketsApi = {
-  list: () => portalApiCall<TicketItem[]>('/portal/tickets'),
+  list: (p?: PageQuery & { status?: string }) =>
+    portalApiCall<TicketItem[]>(
+      `/portal/tickets${pageQuery(p)}${p?.status ? `${pageQuery(p) ? '&' : '?'}status=${p.status}` : ''}`
+    ),
   get: (id: string) => portalApiCall<TicketItem>(`/portal/tickets/${id}`),
   create: (data: { subject: string; category: TicketCategory; priority: TicketPriority; body: string }) =>
     portalApiCall<TicketItem>('/portal/tickets', { method: 'POST', body: JSON.stringify(data) }),

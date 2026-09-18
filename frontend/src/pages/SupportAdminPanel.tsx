@@ -125,7 +125,7 @@ const SupportAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
 
           {/* messages */}
           <div className="space-y-3">
-            {active.messages.map((m, i) => (
+            {(active.messages || []).map((m, i) => (
               <div
                 key={i}
                 className={`border rounded-lg p-4 ${

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Port, Incident } from '../models';
 import config from '../config/environment';
+import { parsePaging, pageMeta, paginateArray } from '../utils/pagination';
 
 const LG_BASE = config.lgApiUrl.replace(/\/$/, '');
 
@@ -184,8 +185,13 @@ export const getOverview = async (req: Request, res: Response): Promise<void> =>
  */
 export const getPorts = async (req: Request, res: Response): Promise<void> => {
   try {
-    const ports = await Port.find({ organization: req.organization!._id }).sort({ order: 1, name: 1 });
-    res.json({ success: true, data: ports });
+    const paging = parsePaging(req.query, { defaultPageSize: 100 });
+    const filter = { organization: req.organization!._id };
+    const [ports, total] = await Promise.all([
+      Port.find(filter).sort({ order: 1, name: 1 }).skip(paging.skip).limit(paging.limit),
+      Port.countDocuments(filter),
+    ]);
+    res.json({ success: true, data: ports, meta: pageMeta(total, paging) });
   } catch (error) {
     console.error('Portal ports error:', error);
     res.status(500).json({ success: false, error: 'Failed to load ports.' });
@@ -201,16 +207,24 @@ export const getPeeringSessions = async (req: Request, res: Response): Promise<v
     const org = req.organization!;
     const asns = [org.asn, ...(org.additionalAsns || [])].filter(Boolean) as number[];
 
+    const paging = parsePaging(req.query, { defaultPageSize: 100 });
+
     if (!asns.length) {
-      res.json({ success: true, data: { asns: [], sessions: [], lgReachable: true } });
+      res.json({
+        success: true,
+        data: { asns: [], sessions: [], lgReachable: true, meta: pageMeta(0, paging) },
+      });
       return;
     }
 
     // Single pass: the route-server list doubles as the reachability probe.
     const scoped = await getScopedNeighbors(asns);
+    // Alice-LG has no server-side paging for neighbours, so the window is applied
+    // here — the upstream response is already cached, so this stays cheap.
+    const { items, meta } = paginateArray(scoped.sessions, paging);
     res.json({
       success: true,
-      data: { asns, sessions: scoped.sessions, lgReachable: scoped.reachable },
+      data: { asns, sessions: items, lgReachable: scoped.reachable, meta },
     });
   } catch (error) {
     console.error('Portal peering error:', error);

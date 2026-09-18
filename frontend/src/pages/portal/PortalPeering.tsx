@@ -26,9 +26,10 @@ import {
   PeerNetwork,
   PeeringPolicyInfo,
   MarketplaceNetwork,
+  PageMeta,
 } from '../../services/api';
 import { formatAsPath, formatCommunities, formatCommunity, downloadCSV } from '../../shared/lg';
-import { PageHeading, Badge, sessionStateTone, EmptyState } from './ui';
+import { PageHeading, Badge, sessionStateTone, EmptyState, Pager } from './ui';
 
 interface Props {
   org: PortalOrgInfo;
@@ -111,7 +112,8 @@ const SessionsTab: React.FC<Props> = ({ org }) => {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await portalApi.getPeeringSessions();
+    // A member's session count is small; one generous page covers it.
+    const res = await portalApi.getPeeringSessions({ pageSize: 200 });
     if (res.success && res.data) {
       setSessions(res.data.sessions);
       setLgReachable(res.data.lgReachable);
@@ -382,16 +384,45 @@ const BilateralTab: React.FC<Props> = ({ org }) => {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // The networks directory is paged and searched server-side, so it reloads
+  // independently of the request lists.
+  const [netMeta, setNetMeta] = useState<PageMeta | undefined>();
+  const [netPage, setNetPage] = useState(1);
+  const [netQuery, setNetQuery] = useState('');
+  const [netQueryInput, setNetQueryInput] = useState('');
+  const [netBusy, setNetBusy] = useState(false);
+
   const load = useCallback(async () => {
-    const [r, n] = await Promise.all([portalPeeringApi.listRequests(), portalPeeringApi.getNetworks()]);
+    const r = await portalPeeringApi.listRequests({ pageSize: 200 });
     if (r.success && r.data) setRequests(r.data);
-    if (n.success && n.data) setNetworks(n.data);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    let active = true;
+    setNetBusy(true);
+    portalPeeringApi.getNetworks({ page: netPage, q: netQuery || undefined }).then((n) => {
+      if (!active) return;
+      if (n.success && n.data) {
+        setNetworks(n.data);
+        setNetMeta(n.meta);
+      }
+      setNetBusy(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [netPage, netQuery]);
+
+  const searchNetworks = (e: React.FormEvent) => {
+    e.preventDefault();
+    setNetPage(1);
+    setNetQuery(netQueryInput.trim());
+  };
 
   const submit = async () => {
     setError('');
@@ -530,10 +561,45 @@ const BilateralTab: React.FC<Props> = ({ org }) => {
 
       {/* Discover networks */}
       <section>
-        <h3 className="font-mono text-label tracking-label uppercase text-ink mb-3 flex items-center gap-2">
-          <Share2 className="w-4 h-4 text-[#F20732]" /> Networks at MX-IX
-        </h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-mono text-label tracking-label uppercase text-ink flex items-center gap-2">
+            <Share2 className="w-4 h-4 text-[#F20732]" /> Networks at MX-IX
+          </h3>
+          <form onSubmit={searchNetworks} className="flex items-center gap-2">
+            <label className="relative">
+              <span className="sr-only">Search networks by name or ASN</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+              <input
+                value={netQueryInput}
+                onChange={(e) => setNetQueryInput(e.target.value)}
+                placeholder="Name or ASN"
+                className="border border-gray-300 py-2 pl-9 pr-3 font-mono text-xs text-ink transition-colors focus:border-ink focus:outline-none"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={netBusy}
+              className="cursor-pointer border border-gray-300 px-3 py-2 font-mono text-label-sm font-bold uppercase tracking-mono text-ink transition-colors duration-200 hover:border-ink disabled:opacity-50"
+            >
+              {netBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Search'}
+            </button>
+            {netQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNetQueryInput('');
+                  setNetQuery('');
+                  setNetPage(1);
+                }}
+                className="cursor-pointer font-mono text-label-sm uppercase tracking-mono text-gray-500 transition-colors duration-200 hover:text-ink"
+              >
+                Clear
+              </button>
+            )}
+          </form>
+        </div>
         {networks.length ? (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {networks.map((n) => (
               <div key={n.id} className="group bg-white border border-gray-200 p-4 hover:border-gray-300 transition-colors">
@@ -553,8 +619,17 @@ const BilateralTab: React.FC<Props> = ({ org }) => {
               </div>
             ))}
           </div>
+          {netMeta && netMeta.totalPages > 1 && (
+            <div className="mt-3 bg-white border border-gray-200">
+              <Pager meta={netMeta} onPage={setNetPage} label="networks" busy={netBusy} />
+            </div>
+          )}
+          </>
         ) : (
-          <EmptyState icon={<Share2 className="w-8 h-8" />} title="No other networks listed yet" />
+          <EmptyState
+            icon={<Share2 className="w-8 h-8" />}
+            title={netQuery ? 'No networks match that search' : 'No other networks listed yet'}
+          />
         )}
       </section>
     </div>
@@ -567,12 +642,22 @@ const MarketplaceTab: React.FC = () => {
   const [networks, setNetworks] = useState<MarketplaceNetwork[]>([]);
   const [loading, setLoading] = useState(true);
   const [sent, setSent] = useState<Record<number, boolean>>({});
+  const [meta, setMeta] = useState<PageMeta | undefined>();
+  const [page, setPage] = useState(1);
+  const [query, setQuery] = useState('');
+  const [queryInput, setQueryInput] = useState('');
+  const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const res = await portalPeeringApi.getMarketplace();
-    if (res.success && res.data) setNetworks(res.data);
+    setBusy(true);
+    const res = await portalPeeringApi.getMarketplace({ page, q: query || undefined });
+    if (res.success && res.data) {
+      setNetworks(res.data);
+      setMeta(res.meta);
+    }
+    setBusy(false);
     setLoading(false);
-  }, []);
+  }, [page, query]);
 
   useEffect(() => {
     load();
@@ -624,6 +709,46 @@ const MarketplaceTab: React.FC = () => {
 
   return (
     <div className="space-y-8">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setPage(1);
+          setQuery(queryInput.trim());
+        }}
+        className="flex flex-wrap items-center gap-2"
+      >
+        <label className="relative">
+          <span className="sr-only">Search networks by name or ASN</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+          <input
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+            placeholder="Name or ASN"
+            className="border border-gray-300 py-2 pl-9 pr-3 font-mono text-xs text-ink transition-colors focus:border-ink focus:outline-none"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={busy}
+          className="cursor-pointer border border-gray-300 px-3 py-2 font-mono text-label-sm font-bold uppercase tracking-mono text-ink transition-colors duration-200 hover:border-ink disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Search'}
+        </button>
+        {query && (
+          <button
+            type="button"
+            onClick={() => {
+              setQueryInput('');
+              setQuery('');
+              setPage(1);
+            }}
+            className="cursor-pointer font-mono text-label-sm uppercase tracking-mono text-gray-500 transition-colors duration-200 hover:text-ink"
+          >
+            Clear
+          </button>
+        )}
+      </form>
+
       {recommended.length > 0 && (
         <section>
           <h3 className="font-mono text-label tracking-label uppercase text-ink mb-3">Recommended for you</h3>
@@ -643,7 +768,15 @@ const MarketplaceTab: React.FC = () => {
             ))}
           </div>
         ) : (
-          <EmptyState icon={<Share2 className="w-8 h-8" />} title="No networks listed yet" />
+          <EmptyState
+            icon={<Share2 className="w-8 h-8" />}
+            title={query ? 'No networks match that search' : 'No networks listed yet'}
+          />
+        )}
+        {meta && meta.totalPages > 1 && (
+          <div className="mt-3 bg-white border border-gray-200">
+            <Pager meta={meta} onPage={setPage} label="networks" busy={busy} />
+          </div>
         )}
       </section>
     </div>

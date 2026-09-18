@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Order, Port, Location } from '../models';
 import { OrderType } from '../models/order.model';
+import { parsePaging, pageMeta } from '../utils/pagination';
 
 export const PORT_SPEEDS = ['1G', '10G', '25G', '100G', '400G'];
 export const ADDONS = [
@@ -36,8 +37,13 @@ export const getCatalog = async (_req: Request, res: Response): Promise<void> =>
  */
 export const listOrders = async (req: Request, res: Response): Promise<void> => {
   try {
-    const orders = await Order.find({ organization: req.organization!._id }).sort({ createdAt: -1 }).lean();
-    res.json({ success: true, data: orders });
+    const paging = parsePaging(req.query, { defaultPageSize: 25 });
+    const filter = { organization: req.organization!._id };
+    const [orders, total] = await Promise.all([
+      Order.find(filter).sort({ createdAt: -1 }).skip(paging.skip).limit(paging.limit).lean(),
+      Order.countDocuments(filter),
+    ]);
+    res.json({ success: true, data: orders, meta: pageMeta(total, paging) });
   } catch (error) {
     console.error('List orders error:', error);
     res.status(500).json({ success: false, error: 'Failed to load orders.' });

@@ -21,7 +21,7 @@ const PortalTeam: React.FC<Props> = ({ user }) => {
   const isAdmin = user.role === 'admin';
 
   const load = useCallback(async () => {
-    const res = await portalTeamApi.list();
+    const res = await portalTeamApi.list({ pageSize: 200 });
     if (res.success && res.data) setMembers(res.data);
     setLoading(false);
   }, []);

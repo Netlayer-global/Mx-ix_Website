@@ -32,7 +32,10 @@ const PortalAlerts: React.FC = () => {
   });
 
   const load = useCallback(async () => {
-    const [a, p] = await Promise.all([portalAlertsApi.list(), portalApi.getPorts()]);
+    const [a, p] = await Promise.all([
+      portalAlertsApi.list({ pageSize: 200 }),
+      portalApi.getPorts({ pageSize: 200 }),
+    ]);
     if (a.success && a.data) setRules(a.data);
     if (p.success && p.data) {
       setPorts(p.data);

@@ -1,6 +1,16 @@
 import { Request, Response } from 'express';
 import { PeeringRequest, Organization } from '../models';
 import { notify } from '../services/notification.service';
+import { parsePaging, pageMeta, paginateArray } from '../utils/pagination';
+
+/** Build a case-insensitive name/ASN search filter from `?q=`. */
+const searchFilter = (q: string): Record<string, unknown> | null => {
+  const term = q.trim();
+  if (!term) return null;
+  const asn = Number(term.replace(/^as/i, ''));
+  const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+  return Number.isFinite(asn) && asn > 0 ? { $or: [{ name: rx }, { asn }] } : { name: rx };
+};
 
 /**
  * GET /api/portal/peering/policy
@@ -58,14 +68,25 @@ export const updatePolicy = async (req: Request, res: Response): Promise<void> =
  */
 export const getNetworks = async (req: Request, res: Response): Promise<void> => {
   try {
-    const orgs = await Organization.find({
+    const paging = parsePaging(req.query, { defaultPageSize: 50 });
+    const search = searchFilter(String(req.query.q || ''));
+    const filter: Record<string, unknown> = {
       _id: { $ne: req.organization!._id },
       status: 'active',
       asn: { $ne: null, $exists: true },
-    })
-      .select('name asn type peeringPolicy locations website')
-      .sort({ name: 1 })
-      .lean();
+      ...(search || {}),
+    };
+
+    const [orgs, total] = await Promise.all([
+      Organization.find(filter)
+        .select('name asn type peeringPolicy locations website')
+        .sort({ name: 1 })
+        .skip(paging.skip)
+        .limit(paging.limit)
+        .lean(),
+      Organization.countDocuments(filter),
+    ]);
+
     res.json({
       success: true,
       data: orgs.map((o) => ({
@@ -77,6 +98,7 @@ export const getNetworks = async (req: Request, res: Response): Promise<void> =>
         locations: o.locations,
         website: o.website,
       })),
+      meta: pageMeta(total, paging),
     });
   } catch (error) {
     console.error('Get networks error:', error);
@@ -91,11 +113,17 @@ export const getNetworks = async (req: Request, res: Response): Promise<void> =>
 export const listRequests = async (req: Request, res: Response): Promise<void> => {
   try {
     const orgId = req.organization!._id;
-    const reqs = await PeeringRequest.find({ $or: [{ fromOrg: orgId }, { toOrg: orgId }] })
-      .sort({ createdAt: -1 })
-      .lean();
+    const paging = parsePaging(req.query, { defaultPageSize: 50 });
+    const filter = { $or: [{ fromOrg: orgId }, { toOrg: orgId }] };
+
+    const [reqs, total] = await Promise.all([
+      PeeringRequest.find(filter).sort({ createdAt: -1 }).skip(paging.skip).limit(paging.limit).lean(),
+      PeeringRequest.countDocuments(filter),
+    ]);
+
     res.json({
       success: true,
+      meta: pageMeta(total, paging),
       data: reqs.map((r) => ({
         id: r._id,
         direction: String(r.fromOrg) === String(orgId) ? 'outgoing' : 'incoming',
@@ -242,15 +270,23 @@ export const cancelRequest = async (req: Request, res: Response): Promise<void> 
 export const getMarketplace = async (req: Request, res: Response): Promise<void> => {
   try {
     const org = req.organization!;
+    const paging = parsePaging(req.query, { defaultPageSize: 50 });
+    const search = searchFilter(String(req.query.q || ''));
     const myLocations = new Set((org.locations || []).map((l) => l.toLowerCase()));
 
+    // Fit scoring compares every candidate against this member's locations, so
+    // the candidate set has to be scored before it can be ordered and paged.
+    // The hard cap keeps that bounded regardless of how many members exist.
+    const SCORE_CAP = 2000;
     const [orgs, requests] = await Promise.all([
       Organization.find({
         _id: { $ne: org._id },
         status: 'active',
         asn: { $ne: null, $exists: true },
+        ...(search || {}),
       })
         .select('name asn type peeringPolicy locations website')
+        .limit(SCORE_CAP)
         .lean(),
       PeeringRequest.find({ fromOrg: org._id }).select('toAsn status').lean(),
     ]);
@@ -277,7 +313,8 @@ export const getMarketplace = async (req: Request, res: Response): Promise<void>
       })
       .sort((a, b) => b.score - a.score);
 
-    res.json({ success: true, data: networks });
+    const { items, meta } = paginateArray(networks, paging);
+    res.json({ success: true, data: items, meta });
   } catch (error) {
     console.error('Marketplace error:', error);
     res.status(500).json({ success: false, error: 'Failed to load marketplace.' });

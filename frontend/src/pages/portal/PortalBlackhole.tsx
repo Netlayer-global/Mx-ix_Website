@@ -13,7 +13,7 @@ const PortalBlackhole: React.FC = () => {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const res = await portalBlackholeApi.list();
+    const res = await portalBlackholeApi.list({ pageSize: 200 });
     if (res.success && res.data) setItems(res.data);
     setLoading(false);
   }, []);

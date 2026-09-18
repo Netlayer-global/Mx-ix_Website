@@ -116,3 +116,47 @@ export const EmptyState: React.FC<{ icon?: React.ReactNode; title: string; hint?
     {hint && <p className="text-sm text-gray-500 mt-2 max-w-md">{hint}</p>}
   </div>
 );
+
+/**
+ * Pager for bounded lists.
+ *
+ * Renders nothing for a single page, so it can be dropped under any list
+ * without adding noise to small accounts.
+ */
+export const Pager: React.FC<{
+  meta?: { page: number; pageSize: number; total: number; totalPages: number; hasMore: boolean };
+  onPage: (page: number) => void;
+  /** Plural noun for the count line, e.g. "tickets". */
+  label?: string;
+  busy?: boolean;
+}> = ({ meta, onPage, label = 'items', busy }) => {
+  if (!meta || meta.totalPages <= 1) return null;
+
+  const first = (meta.page - 1) * meta.pageSize + 1;
+  const last = Math.min(meta.page * meta.pageSize, meta.total);
+
+  const btn =
+    'cursor-pointer border border-gray-300 px-3 py-2 font-mono text-label-sm font-bold uppercase tracking-mono text-ink transition-colors duration-200 hover:border-ink disabled:cursor-not-allowed disabled:opacity-40';
+
+  return (
+    <nav
+      aria-label={`${label} pagination`}
+      className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 px-5 py-4"
+    >
+      <p className="font-mono text-label-sm tracking-label uppercase text-gray-500">
+        {first}–{last} of {meta.total} {label}
+      </p>
+      <div className="flex items-center gap-2">
+        <button type="button" className={btn} disabled={busy || meta.page <= 1} onClick={() => onPage(meta.page - 1)}>
+          Prev
+        </button>
+        <span className="px-1 font-mono text-label-sm tracking-label text-gray-500">
+          {meta.page} / {meta.totalPages}
+        </span>
+        <button type="button" className={btn} disabled={busy || !meta.hasMore} onClick={() => onPage(meta.page + 1)}>
+          Next
+        </button>
+      </div>
+    </nav>
+  );
+};

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import zohoBooks from '../services/zohoBooks.service';
 import { getEffectiveZohoProfile } from '../models/settings.model';
+import { parsePaging, paginateArray, pageMeta } from '../utils/pagination';
 
 /**
  * GET /api/portal/billing/invoices
@@ -9,13 +10,20 @@ import { getEffectiveZohoProfile } from '../models/settings.model';
 export const listInvoices = async (req: Request, res: Response): Promise<void> => {
   try {
     const org = req.organization!;
+    const paging = parsePaging(req.query, { defaultPageSize: 50 });
     const cfg = await getEffectiveZohoProfile(org.zohoProfileKey);
     if (!cfg.enabled) {
-      res.json({ success: true, data: { configured: false, linked: !!org.zohoContactId, invoices: [] } });
+      res.json({
+        success: true,
+        data: { configured: false, linked: !!org.zohoContactId, invoices: [], meta: pageMeta(0, paging) },
+      });
       return;
     }
     if (!org.zohoContactId) {
-      res.json({ success: true, data: { configured: true, linked: false, invoices: [] } });
+      res.json({
+        success: true,
+        data: { configured: true, linked: false, invoices: [], meta: pageMeta(0, paging) },
+      });
       return;
     }
 
@@ -34,7 +42,9 @@ export const listInvoices = async (req: Request, res: Response): Promise<void> =
       balance: i.balance,
       currency: i.currency_code,
     }));
-    res.json({ success: true, data: { configured: true, linked: true, invoices } });
+    // Zoho returns the full list for the contact; the window is applied here.
+    const { items, meta } = paginateArray(invoices, paging);
+    res.json({ success: true, data: { configured: true, linked: true, invoices: items, meta } });
   } catch (error) {
     console.error('Portal billing list error:', error);
     res.status(500).json({ success: false, error: 'Failed to load invoices.' });
