@@ -161,10 +161,14 @@ const PortalShell: React.FC<Props> = ({ user, org, onLogout, onNavigate, onOrgRe
       <div className="px-6 py-6 border-b border-white/10">
         <button
           onClick={() => onNavigate?.('home')}
-          className="flex items-center gap-2 hover-trigger group"
+          className="hover-trigger group flex items-center gap-px"
         >
-          <img src="/assets/logo.png" alt="MX-IX" className="w-8 h-8 object-contain" />
-          <span className="text-xl font-black tracking-tighter">MX-IX</span>
+          <img src="/assets/logo-mark.png" alt="MX-IX" className="w-9 h-9 shrink-0 object-contain" />
+          <span className="flex items-center text-xl font-black leading-none tracking-[-0.04em]">
+            MX
+            <span aria-hidden="true" className="mx-[0.06em] h-[0.17em] w-[0.4em] rounded-[1px] bg-current" />
+            IX
+          </span>
         </button>
         <span className="eyebrow mt-4 text-white">Member Portal</span>
       </div>

@@ -4,44 +4,95 @@ import config from '../config/environment';
 
 const LG_BASE = config.lgApiUrl.replace(/\/$/, '');
 
+/** Default upstream timeout. Short on purpose: a stalled RS must not stall the page. */
+const LG_TIMEOUT_MS = 3000;
+
 /**
- * Fetch JSON from the upstream Alice-LG API with a timeout.
- * Some route servers can hang; keep the per-request timeout short so a single
- * unhealthy RS never stalls the whole dashboard.
+ * In-process cache for Alice-LG responses.
+ *
+ * The route-server list and neighbour tables barely change between polls, yet
+ * they were being refetched on every page load, every route-filter switch and
+ * every pagination click — each one a remote round trip. Caching them for a few
+ * seconds is what takes this page from tens of seconds to sub-second.
+ *
+ * `inflight` additionally collapses concurrent requests for the same path so a
+ * burst of calls costs one upstream fetch, not N.
  */
-async function lgFetch<T = any>(path: string, timeoutMs = 6000): Promise<T | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    const r = await fetch(`${LG_BASE}${path}`, {
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!r.ok) return null;
-    return (await r.json()) as T;
-  } catch {
-    return null;
+const LG_TTL_MS = 30_000;
+const lgCache = new Map<string, { at: number; payload: any }>();
+const lgInflight = new Map<string, Promise<any>>();
+
+/**
+ * Fetch JSON from the upstream Alice-LG API with a timeout, served from a short
+ * TTL cache when possible.
+ */
+async function lgFetch<T = any>(
+  path: string,
+  timeoutMs = LG_TIMEOUT_MS,
+  opts: { noCache?: boolean } = {}
+): Promise<T | null> {
+  if (!opts.noCache) {
+    const hit = lgCache.get(path);
+    if (hit && Date.now() - hit.at < LG_TTL_MS) return hit.payload as T;
+
+    const pending = lgInflight.get(path);
+    if (pending) return (await pending) as T;
   }
+
+  const run = (async (): Promise<T | null> => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      const r = await fetch(`${LG_BASE}${path}`, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!r.ok) return null;
+      const payload = (await r.json()) as T;
+      // Only successful payloads are cached; a failure should retry immediately.
+      lgCache.set(path, { at: Date.now(), payload });
+      return payload;
+    } catch {
+      return null;
+    } finally {
+      lgInflight.delete(path);
+    }
+  })();
+
+  lgInflight.set(path, run);
+  return run;
 }
 
-/** Collect every neighbor across all route servers whose ASN matches the org. */
-async function getScopedNeighbors(asns: number[], timeoutMs = 6000): Promise<{
+/** Neighbour list for one route server (cached). */
+async function lgNeighbors(rsId: string, timeoutMs = LG_TIMEOUT_MS): Promise<any[]> {
+  const resp = await lgFetch<{ neighbors?: any[]; neighbours?: any[] }>(
+    `/routeservers/${encodeURIComponent(rsId)}/neighbors`,
+    timeoutMs
+  );
+  return resp?.neighbors || resp?.neighbours || [];
+}
+
+/**
+ * Collect every neighbor across all route servers whose ASN matches the org.
+ * `reachable` is false only when the route-server list itself can't be fetched,
+ * so one dead RS degrades to fewer sessions instead of an error state.
+ */
+async function getScopedNeighbors(asns: number[], timeoutMs = LG_TIMEOUT_MS): Promise<{
   routeservers: any[];
   sessions: any[];
+  reachable: boolean;
 }> {
   const rsResp = await lgFetch<{ routeservers?: any[] }>('/routeservers', timeoutMs);
-  const routeservers = rsResp?.routeservers || [];
+  if (!rsResp) return { routeservers: [], sessions: [], reachable: false };
+
+  const routeservers = rsResp.routeservers || [];
   const asnSet = new Set(asns);
   const sessions: any[] = [];
 
   await Promise.all(
     routeservers.map(async (rs: any) => {
-      const nResp = await lgFetch<{ neighbors?: any[]; neighbours?: any[] }>(
-        `/routeservers/${encodeURIComponent(rs.id)}/neighbors`,
-        timeoutMs
-      );
-      const neighbors = nResp?.neighbors || nResp?.neighbours || [];
+      const neighbors = await lgNeighbors(rs.id, timeoutMs);
       neighbors
         .filter((n: any) => asnSet.has(Number(n.asn)))
         .forEach((n: any) => {
@@ -63,7 +114,7 @@ async function getScopedNeighbors(asns: number[], timeoutMs = 6000): Promise<{
     })
   );
 
-  return { routeservers, sessions };
+  return { routeservers, sessions, reachable: true };
 }
 
 /**
@@ -155,14 +206,12 @@ export const getPeeringSessions = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const rsResp = await lgFetch<{ routeservers?: any[] }>('/routeservers');
-    if (!rsResp) {
-      res.json({ success: true, data: { asns, sessions: [], lgReachable: false } });
-      return;
-    }
-
+    // Single pass: the route-server list doubles as the reachability probe.
     const scoped = await getScopedNeighbors(asns);
-    res.json({ success: true, data: { asns, sessions: scoped.sessions, lgReachable: true } });
+    res.json({
+      success: true,
+      data: { asns, sessions: scoped.sessions, lgReachable: scoped.reachable },
+    });
   } catch (error) {
     console.error('Portal peering error:', error);
     res.status(500).json({ success: false, error: 'Failed to load peering sessions.' });
@@ -184,11 +233,10 @@ export const getPeeringRoutes = async (req: Request, res: Response): Promise<voi
     const rawFilter = String(req.params.filter || 'received');
     const filter = ['received', 'filtered', 'not-exported'].includes(rawFilter) ? rawFilter : 'received';
 
-    // Ownership check: the neighbor must belong to this org's ASN
-    const nResp = await lgFetch<{ neighbors?: any[]; neighbours?: any[] }>(
-      `/routeservers/${encodeURIComponent(rsIdStr)}/neighbors`
-    );
-    const neighbors = nResp?.neighbors || nResp?.neighbours || [];
+    // Ownership check: the neighbor must belong to this org's ASN.
+    // Served from the neighbour cache, so paging/filtering doesn't re-fetch the
+    // whole table on every click.
+    const neighbors = await lgNeighbors(rsIdStr);
     const neighbor = neighbors.find((n: any) => String(n.id) === neighborIdStr);
     if (!neighbor || !asns.has(Number(neighbor.asn))) {
       res.status(403).json({ success: false, error: 'This session does not belong to your network.' });

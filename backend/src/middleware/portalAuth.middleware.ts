@@ -47,15 +47,24 @@ export const portalAuthMiddleware = async (
       return;
     }
 
-    const user = await PortalUser.findById(decoded.userId);
+    // The token carries both ids, so the user and org load in parallel instead
+    // of the org waiting on the user lookup. This runs on every portal request.
+    const [user, org] = await Promise.all([
+      PortalUser.findById(decoded.userId),
+      Organization.findById(decoded.organizationId),
+    ]);
+
     if (!user || !user.isActive) {
       res.status(401).json({ success: false, error: 'Account no longer exists or is inactive.' });
       return;
     }
-
-    const org = await Organization.findById(user.organization);
     if (!org) {
       res.status(401).json({ success: false, error: 'Organization not found.' });
+      return;
+    }
+    // Guard against a token minted before the user was moved between orgs.
+    if (String(user.organization) !== String(org._id)) {
+      res.status(401).json({ success: false, error: 'Session no longer valid. Please login again.' });
       return;
     }
     if (org.status === 'suspended') {
