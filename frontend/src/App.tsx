@@ -431,15 +431,14 @@ const Navigation = ({ currentPage, setPage, pageVisibility }: { currentPage: str
   };
 
   const getNavItemBg = () => {
-    if (isDark && !scrolled) return 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20';
-    return 'bg-white/60 backdrop-blur-md border-gray-100 hover:bg-white/80';
+    // Always a light pill so the black menu text stays readable over any hero.
+    if (isDark && !scrolled) return 'bg-white/85 backdrop-blur-md border-white/40 hover:bg-white shadow-sm';
+    return 'bg-white/70 backdrop-blur-md border-gray-100 hover:bg-white/90';
   };
 
   const getNavItemTextColor = (isActive: boolean) => {
-    if (isDark && !scrolled) {
-      return isActive ? 'text-[#F20732]' : 'text-gray-300 hover:text-white';
-    }
-    return isActive ? 'text-[#F20732]' : 'text-gray-500 hover:text-black';
+    // Menu items always use dark text for a consistent, readable look.
+    return isActive ? 'text-[#F20732]' : 'text-black hover:text-[#F20732]';
   };
 
   return (
