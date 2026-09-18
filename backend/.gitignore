@@ -27,3 +27,6 @@ coverage/
 
 # Database backups
 backups/
+
+# Uploaded files (customer documents etc.) — served from disk, never committed
+uploads/

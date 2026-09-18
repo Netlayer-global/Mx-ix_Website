@@ -18,6 +18,7 @@ import {
   Phone,
   FileText,
   Upload,
+  Download,
 } from 'lucide-react';
 import {
   adminCustomersApi,
@@ -31,6 +32,7 @@ import {
   PortalRole,
   PortStatus,
   PORTAL_TOKEN_KEY,
+  DOCUMENT_MAX_BYTES,
 } from '../services/api';
 
 interface Props {
@@ -869,7 +871,9 @@ const DocumentsSection: React.FC<{ orgId: string; fieldClass: string }> = ({ org
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ name: '', category: 'loa' as 'loa' | 'invoice' | 'contract' | 'policy' | 'diagram' | 'other', notes: '', memberVisible: false });
   const fileRef = useRef<HTMLInputElement | null>(null);
-  const [pendingFile, setPendingFile] = useState<{ name: string; data: string; contentType: string } | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await adminDocumentsApi.list(orgId);
@@ -879,23 +883,20 @@ const DocumentsSection: React.FC<{ orgId: string; fieldClass: string }> = ({ org
   useEffect(() => { load(); }, [load]);
 
   const pickFile = (file: File) => {
-    if (file.size > 10_000_000) { alert('File too large (max 10 MB)'); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPendingFile({ name: file.name, data: String(reader.result), contentType: file.type });
-      setForm((f) => ({ ...f, name: f.name || file.name }));
-    };
-    reader.readAsDataURL(file);
+    if (file.size > DOCUMENT_MAX_BYTES) {
+      setError(`File is too large (max ${Math.round(DOCUMENT_MAX_BYTES / (1024 * 1024))} MB).`);
+      return;
+    }
+    setError('');
+    setPendingFile(file);
+    setForm((f) => ({ ...f, name: f.name || file.name }));
   };
 
   const upload = async () => {
-    if (!form.name || !pendingFile) return;
+    if (!pendingFile) return;
     setBusy(true);
-    const res = await adminDocumentsApi.create(orgId, {
-      filename: pendingFile.name,
-      storagePath: pendingFile.data,
-      mimeType: pendingFile.contentType,
-      size: Math.round(pendingFile.data.length * 0.75),
+    setError('');
+    const res = await adminDocumentsApi.upload(orgId, pendingFile, {
       category: form.category,
       description: form.notes,
       visibility: form.memberVisible ? 'shared' : 'staff',
@@ -905,11 +906,20 @@ const DocumentsSection: React.FC<{ orgId: string; fieldClass: string }> = ({ org
       setForm({ name: '', category: 'loa', notes: '', memberVisible: false });
       setPendingFile(null);
       load();
+    } else {
+      setError(res.error || 'Upload failed.');
     }
   };
 
+  const download = async (d: any) => {
+    setDownloading(d._id);
+    const err = await adminDocumentsApi.download(orgId, d._id, d.filename);
+    setDownloading(null);
+    if (err) setError(err);
+  };
+
   const del = async (id: string) => {
-    if (!confirm('Delete this document?')) return;
+    if (!confirm('Delete this document? The stored file is removed too.')) return;
     await adminDocumentsApi.remove(orgId, id);
     load();
   };
@@ -923,45 +933,78 @@ const DocumentsSection: React.FC<{ orgId: string; fieldClass: string }> = ({ org
         {docs.map((d) => (
           <div key={d._id} className="bg-gray-900 border border-gray-700 rounded p-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm truncate">
-                {d.name}
+              <div className="truncate text-sm font-bold">
+                {d.filename || d.name}
                 <span className="ml-2 text-[10px] uppercase text-gray-500">{d.category}</span>
-                {d.memberVisible && <span className="ml-2 text-[9px] bg-blue-500/15 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded">member-visible</span>}
+                {d.visibility === 'shared' && (
+                  <span className="ml-2 rounded border border-blue-500/30 bg-blue-500/15 px-1.5 py-0.5 text-[9px] text-blue-400">
+                    member-visible
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-500">
-                {d.fileName || d.name} · uploaded {new Date(d.createdAt).toLocaleDateString()}
+                {d.size ? `${Math.max(1, Math.round(d.size / 1024))} KB · ` : ''}uploaded{' '}
+                {new Date(d.createdAt).toLocaleDateString()}
                 {d.uploadedBy ? ` by ${d.uploadedBy}` : ''}
+                {d.description ? ` · ${d.description}` : ''}
               </div>
             </div>
-            <button onClick={() => del(d._id)} className="p-1.5 text-gray-500 hover:text-[#F20732] transition-colors">
+            {d.available === false ? (
+              <span className="text-[10px] uppercase text-gray-500" title="No stored file — legacy metadata record">
+                No file
+              </span>
+            ) : (
+              <button
+                onClick={() => download(d)}
+                disabled={downloading === d._id}
+                className="flex cursor-pointer items-center gap-1.5 p-1.5 text-gray-400 transition-colors hover:text-white disabled:opacity-50"
+                title="Download"
+              >
+                {downloading === d._id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              </button>
+            )}
+            <button onClick={() => del(d._id)} className="cursor-pointer p-1.5 text-gray-500 transition-colors hover:text-[#F20732]" title="Delete">
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
         ))}
         {!docs.length && <p className="text-gray-500 text-sm">No documents uploaded. Add agreements, LOAs or KYC files below.</p>}
       </div>
-      <div className="pt-4 border-t border-gray-700 space-y-3">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Document name *" className={fieldClass} />
+      <div className="space-y-3 border-t border-gray-700 pt-4">
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
           <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value as any })} className={fieldClass}>
             {DOC_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
           <input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Notes (optional)" className={fieldClass} />
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.memberVisible} onChange={(e) => setForm({ ...form, memberVisible: e.target.checked })} />
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.memberVisible}
+              onChange={(e) => setForm({ ...form, memberVisible: e.target.checked })}
+              className="h-4 w-4 cursor-pointer accent-[#F20732]"
+            />
             Member-visible
           </label>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <input ref={fileRef} type="file" className="hidden" onChange={(e) => { if (e.target.files?.[0]) pickFile(e.target.files[0]); e.target.value = ''; }} />
-          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-2 px-4 py-2 bg-gray-700 rounded text-sm font-bold hover:bg-gray-600 transition-colors">
+          <button onClick={() => fileRef.current?.click()} className="flex cursor-pointer items-center gap-2 rounded bg-gray-700 px-4 py-2 text-sm font-bold transition-colors hover:bg-gray-600">
             <Upload className="w-4 h-4" /> Choose file
           </button>
-          {pendingFile && <span className="text-xs text-amber-400 truncate max-w-[200px]">{pendingFile.name}</span>}
-          <button onClick={upload} disabled={busy || !pendingFile} className="flex items-center gap-2 px-5 py-2 bg-[#F20732] rounded font-bold text-sm hover:bg-[#C00628] transition-colors disabled:opacity-50">
+          {pendingFile && (
+            <span className="max-w-[240px] truncate text-xs text-amber-400">
+              {pendingFile.name} · {Math.max(1, Math.round(pendingFile.size / 1024))} KB
+            </span>
+          )}
+          <button onClick={upload} disabled={busy || !pendingFile} className="flex cursor-pointer items-center gap-2 rounded bg-[#F20732] px-5 py-2 text-sm font-bold transition-colors hover:bg-[#C00628] disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />} Upload
           </button>
         </div>
+        {error && <p className="font-mono text-xs text-[#F20732]">{error}</p>}
+        <p className="text-xs text-gray-500">
+          PDF, Word, Excel, text, images or ZIP — up to {Math.round(DOCUMENT_MAX_BYTES / (1024 * 1024))} MB. Tick
+          member-visible to expose the file in the customer's portal.
+        </p>
       </div>
     </section>
   );

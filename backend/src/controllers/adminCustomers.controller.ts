@@ -1,6 +1,15 @@
 import { Request, Response } from 'express';
+import fs from 'fs';
 import jwt from 'jsonwebtoken';
 import { Organization, PortalUser, Port, MemberContact, CustomerNote, CustomerTag, CustomerDocument } from '../models';
+import {
+  toStoragePath,
+  resolveStoredPath,
+  storedFileExists,
+  removeStoredFile,
+  sanitizeFilename,
+  contentDisposition,
+} from '../services/fileStorage.service';
 import config from '../config/environment';
 import { logAudit } from '../services/audit.service';
 import zohoBooks from '../services/zohoBooks.service';
@@ -629,47 +638,92 @@ export const setCustomerTags = async (req: Request, res: Response): Promise<void
 // Customer Documents
 // ══════════════════════════════════════════════════════════════════════════════
 
+const DOC_CATEGORIES = ['loa', 'invoice', 'contract', 'policy', 'diagram', 'other'];
+
+/** Annotate a document record with whether its bytes are actually on disk. */
+const withAvailability = (d: any) => ({ ...d, available: storedFileExists(d.storagePath) });
+
 export const listDocuments = async (req: Request, res: Response): Promise<void> => {
   try {
     const filter: any = { organization: req.params.id };
     if (req.query?.category) filter.category = req.query.category;
     const docs = await CustomerDocument.find(filter).sort({ createdAt: -1 }).lean();
-    res.json({ success: true, data: docs });
+    res.json({ success: true, data: docs.map(withAvailability) });
   } catch {
     res.status(500).json({ success: false, error: 'Failed to load documents.' });
   }
 };
 
+/**
+ * POST /admin/customers/:id/documents  (multipart/form-data)
+ *
+ * The `documentUpload` middleware has already written the file to disk, so this
+ * only records the metadata. If the DB write fails the file is removed again so
+ * the upload directory doesn't collect orphans.
+ */
 export const createDocument = async (req: Request, res: Response): Promise<void> => {
+  const file = (req as any).file as { path: string; originalname: string; mimetype: string; size: number } | undefined;
+
+  if (!file) {
+    res.status(400).json({ success: false, error: 'A file is required.' });
+    return;
+  }
+
+  const storagePath = toStoragePath(file.path);
+
   try {
-    // In a real deployment this would handle multipart/form-data file upload.
-    // For now it accepts JSON with the storage path already set (the upload
-    // middleware would have written the file and filled storagePath).
-    if (!req.body?.filename || !req.body?.storagePath) {
-      res.status(400).json({ success: false, error: 'filename and storagePath are required.' });
-      return;
-    }
     const doc = await CustomerDocument.create({
       organization: req.params.id,
-      filename: req.body.filename,
-      storagePath: req.body.storagePath,
-      mimeType: req.body.mimeType || 'application/octet-stream',
-      size: req.body.size || 0,
-      category: req.body.category || 'other',
-      description: req.body.description || '',
-      visibility: req.body.visibility === 'shared' ? 'shared' : 'staff',
+      filename: sanitizeFilename(req.body?.filename || file.originalname),
+      storagePath,
+      mimeType: file.mimetype || 'application/octet-stream',
+      size: file.size || 0,
+      category: DOC_CATEGORIES.includes(req.body?.category) ? req.body.category : 'other',
+      description: String(req.body?.description || '').trim(),
+      visibility: req.body?.visibility === 'shared' ? 'shared' : 'staff',
       uploadedBy: req.user?.email || '',
     });
+
     await logAudit({
       actor: req.user?.email,
       action: 'customer.document.upload',
       resource: 'Organization',
       resourceId: String(req.params.id),
-      after: { filename: doc.filename, category: doc.category },
+      after: { filename: doc.filename, category: doc.category, size: doc.size },
     });
-    res.status(201).json({ success: true, data: doc });
+
+    res.status(201).json({ success: true, data: withAvailability(doc.toObject()) });
   } catch {
+    removeStoredFile(storagePath);
     res.status(500).json({ success: false, error: 'Failed to store document record.' });
+  }
+};
+
+/**
+ * GET /admin/customers/:id/documents/:docId/download
+ */
+export const downloadDocument = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const doc = await CustomerDocument.findOne({ _id: req.params.docId, organization: req.params.id });
+    if (!doc) {
+      res.status(404).json({ success: false, error: 'Document not found.' });
+      return;
+    }
+
+    const full = resolveStoredPath(doc.storagePath);
+    if (!full || !storedFileExists(doc.storagePath)) {
+      res.status(410).json({
+        success: false,
+        error: 'This record has no stored file. It predates file storage or was uploaded as metadata only.',
+      });
+      return;
+    }
+
+    res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', contentDisposition(doc.filename));
+    fs.createReadStream(full).pipe(res);
+  } catch {
+    res.status(500).json({ success: false, error: 'Failed to download document.' });
   }
 };
 
@@ -696,7 +750,7 @@ export const deleteDocument = async (req: Request, res: Response): Promise<void>
   try {
     const doc = await CustomerDocument.findOneAndDelete({ _id: req.params.docId, organization: req.params.id });
     if (!doc) { res.status(404).json({ success: false, error: 'Document not found.' }); return; }
-    // NOTE: the actual file on disk/S3 should be deleted here too in production.
+    removeStoredFile(doc.storagePath);
     await logAudit({
       actor: req.user?.email,
       action: 'customer.document.delete',
@@ -739,6 +793,7 @@ export default {
   setCustomerTags,
   listDocuments,
   createDocument,
+  downloadDocument,
   updateDocument,
   deleteDocument,
 };

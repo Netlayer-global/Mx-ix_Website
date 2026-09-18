@@ -18,6 +18,8 @@ import {
   Activity,
   Ban,
   PlayCircle,
+  Upload,
+  Download,
 } from 'lucide-react';
 import {
   adminCustomersApi,
@@ -27,6 +29,8 @@ import {
   adminPeersApi,
   adminFabricApi,
   adminBillingApi,
+  DocCategory,
+  DOCUMENT_MAX_BYTES,
   CustomerOrg,
   CustomerUser,
   PortItem,
@@ -264,7 +268,7 @@ const Customer360Panel: React.FC<Props> = ({ embedded, orgId, onBack, onProvisio
         {tab === 'contacts' && <ContactsTab contacts={contacts} />}
         {tab === 'orders' && <OrdersTab orders={orders} />}
         {tab === 'tickets' && <TicketsTab orgName={org.name} />}
-        {tab === 'documents' && <DocumentsTab documents={documents} orgId={orgId} />}
+        {tab === 'documents' && <DocumentsTab documents={documents} orgId={orgId} onChanged={load} />}
         {tab === 'billing' && <BillingTab orgId={orgId} />}
       </main>
     </div>
@@ -525,67 +529,231 @@ const TicketsTab: React.FC<{ orgName: string }> = ({ orgName }) => (
 );
 
 // ── Documents Tab ──
-const DocumentsTab: React.FC<{ documents: any[]; orgId?: string }> = ({ documents, orgId }) => {
+const DOC_CATEGORIES: { id: DocCategory; label: string }[] = [
+  { id: 'contract', label: 'Contract' },
+  { id: 'loa', label: 'LOA' },
+  { id: 'invoice', label: 'Invoice' },
+  { id: 'policy', label: 'Policy' },
+  { id: 'diagram', label: 'Diagram' },
+  { id: 'other', label: 'Other' },
+];
+
+const fileSize = (bytes: number): string =>
+  !bytes ? '—' : bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+const DocumentsTab: React.FC<{ documents: any[]; orgId?: string; onChanged?: () => void }> = ({
+  documents,
+  orgId,
+  onChanged,
+}) => {
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadForm, setUploadForm] = useState({ filename: '', category: 'contract' as any, description: '' });
+  const [file, setFile] = useState<File | null>(null);
+  const [category, setCategory] = useState<DocCategory>('contract');
+  const [description, setDescription] = useState('');
+  const [visibility, setVisibility] = useState<'staff' | 'shared'>('staff');
+  const [error, setError] = useState('');
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const reset = () => {
+    setFile(null);
+    setDescription('');
+    setCategory('contract');
+    setVisibility('staff');
+    setError('');
+  };
 
   const handleUpload = async () => {
-    if (!uploadForm.filename.trim() || !orgId) return;
+    if (!file || !orgId) return;
+    if (file.size > DOCUMENT_MAX_BYTES) {
+      setError(`File is too large. The maximum is ${fileSize(DOCUMENT_MAX_BYTES)}.`);
+      return;
+    }
     setUploading(true);
-    await adminDocumentsApi.create(orgId, {
-      filename: uploadForm.filename,
-      storagePath: `/uploads/${orgId}/${uploadForm.filename}`,
-      category: uploadForm.category,
-      description: uploadForm.description,
-    });
+    setError('');
+    const res = await adminDocumentsApi.upload(orgId, file, { category, description, visibility });
     setUploading(false);
+    if (!res.success) {
+      setError(res.error || 'Upload failed.');
+      return;
+    }
     setShowUpload(false);
-    setUploadForm({ filename: '', category: 'contract', description: '' });
+    reset();
+    onChanged?.();
+  };
+
+  const handleDownload = async (d: any) => {
+    if (!orgId) return;
+    setDownloading(d._id);
+    const err = await adminDocumentsApi.download(orgId, d._id, d.filename);
+    setDownloading(null);
+    if (err) setError(err);
+  };
+
+  const handleDelete = async (d: any) => {
+    if (!orgId) return;
+    const res = await adminDocumentsApi.remove(orgId, d._id);
+    if (res.success) onChanged?.();
+    else setError(res.error || 'Delete failed.');
+  };
+
+  const toggleVisibility = async (d: any) => {
+    if (!orgId) return;
+    const next = d.visibility === 'shared' ? 'staff' : 'shared';
+    const res = await adminDocumentsApi.update(orgId, d._id, { visibility: next });
+    if (res.success) onChanged?.();
+    else setError(res.error || 'Could not change visibility.');
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="font-bold text-sm text-gray-400">{documents.length} Documents</h3>
-        <button onClick={() => setShowUpload(!showUpload)} className="flex items-center gap-2 px-3 py-1.5 bg-[#F20732] rounded text-xs font-bold hover:bg-[#C00628] transition-colors cursor-pointer">
-          <FileText className="w-3.5 h-3.5" /> Add Document
+        <button
+          onClick={() => setShowUpload(!showUpload)}
+          className="flex cursor-pointer items-center gap-2 rounded bg-[#F20732] px-3 py-1.5 text-xs font-bold transition-colors hover:bg-[#C00628]"
+        >
+          <Upload className="h-3.5 w-3.5" /> Upload Document
         </button>
       </div>
 
       {showUpload && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 space-y-3">
+        <div className="space-y-3 rounded-lg border border-gray-700 bg-gray-800 p-4">
+          <label className="block">
+            <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-gray-400">File</span>
+            <input
+              type="file"
+              onChange={(e) => {
+                setFile(e.target.files?.[0] || null);
+                setError('');
+              }}
+              className="w-full cursor-pointer rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-gray-600 file:px-3 file:py-1 file:text-xs file:font-bold file:text-white"
+            />
+            <span className="mt-1 block text-[11px] text-gray-500">
+              PDF, Word, Excel, text, images or ZIP. Maximum {fileSize(DOCUMENT_MAX_BYTES)}.
+            </span>
+          </label>
+
           <div className="grid grid-cols-2 gap-3">
-            <input className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" placeholder="Document name / filename" value={uploadForm.filename} onChange={(e) => setUploadForm({ ...uploadForm, filename: e.target.value })} />
-            <select className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" value={uploadForm.category} onChange={(e) => setUploadForm({ ...uploadForm, category: e.target.value })}>
-              <option value="contract">Contract</option>
-              <option value="loa">LOA</option>
-              <option value="invoice">Invoice</option>
-              <option value="technical">Technical</option>
-              <option value="other">Other</option>
-            </select>
+            <label className="block">
+              <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-gray-400">Category</span>
+              <select
+                className="w-full cursor-pointer rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm"
+                value={category}
+                onChange={(e) => setCategory(e.target.value as DocCategory)}
+              >
+                {DOC_CATEGORIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-gray-400">Visibility</span>
+              <select
+                className="w-full cursor-pointer rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm"
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value as 'staff' | 'shared')}
+              >
+                <option value="staff">Staff only</option>
+                <option value="shared">Shared with member</option>
+              </select>
+            </label>
           </div>
-          <input className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm" placeholder="Description (optional)" value={uploadForm.description} onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })} />
+
+          <label className="block">
+            <span className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-gray-400">
+              Description (optional)
+            </span>
+            <input
+              className="w-full rounded border border-gray-600 bg-gray-700 px-3 py-2 text-sm"
+              placeholder="e.g. LOA for MB2 cross-connect #3"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </label>
+
+          {error && <p className="font-mono text-xs text-[#F20732]">{error}</p>}
+
           <div className="flex gap-2">
-            <button onClick={handleUpload} disabled={uploading || !uploadForm.filename.trim()} className="px-4 py-2 bg-green-600 rounded text-xs font-bold hover:bg-green-500 disabled:opacity-50 cursor-pointer">
-              {uploading ? 'Saving...' : 'Save Document'}
+            <button
+              onClick={handleUpload}
+              disabled={uploading || !file}
+              className="flex cursor-pointer items-center gap-2 rounded bg-green-600 px-4 py-2 text-xs font-bold transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              {uploading ? 'Uploading…' : 'Upload'}
             </button>
-            <button onClick={() => setShowUpload(false)} className="px-4 py-2 bg-gray-700 rounded text-xs font-bold hover:bg-gray-600 cursor-pointer">Cancel</button>
+            <button
+              onClick={() => {
+                setShowUpload(false);
+                reset();
+              }}
+              className="cursor-pointer rounded bg-gray-700 px-4 py-2 text-xs font-bold transition-colors hover:bg-gray-600"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
 
-      {documents.length ? documents.map((d: any) => (
-        <div key={d._id} className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center justify-between">
-          <div>
-            <span className="font-bold text-sm">{d.name || d.filename}</span>
-            <span className="text-xs text-gray-500 ml-2">{d.category} - {new Date(d.createdAt).toLocaleDateString()}</span>
-          </div>
-          <span className="text-[10px] uppercase font-mono text-gray-500">{d.visibility || 'staff'}</span>
-        </div>
-      )) : !showUpload ? (
-        <p className="text-gray-500 text-sm py-8 text-center">No documents uploaded.</p>
-      ) : null}
+      {!showUpload && error && <p className="font-mono text-xs text-[#F20732]">{error}</p>}
+
+      {documents.length
+        ? documents.map((d: any) => (
+            <div
+              key={d._id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-700 bg-gray-800 p-4"
+            >
+              <div className="min-w-0">
+                <span className="text-sm font-bold">{d.filename || d.name}</span>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {d.category} · {fileSize(d.size)} · {new Date(d.createdAt).toLocaleDateString()}
+                  {d.uploadedBy ? ` · ${d.uploadedBy}` : ''}
+                  {d.description ? ` · ${d.description}` : ''}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <button
+                  onClick={() => toggleVisibility(d)}
+                  title="Toggle whether the member can see this in their portal"
+                  className={`cursor-pointer rounded border px-2 py-1 font-mono text-[10px] uppercase transition-colors ${
+                    d.visibility === 'shared'
+                      ? 'border-green-500/40 bg-green-500/10 text-green-400 hover:border-green-400'
+                      : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                  }`}
+                >
+                  {d.visibility === 'shared' ? 'Shared' : 'Staff only'}
+                </button>
+                {d.available === false ? (
+                  <span className="font-mono text-[10px] uppercase text-gray-500" title="No stored file — legacy metadata record">
+                    No file
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleDownload(d)}
+                    disabled={downloading === d._id}
+                    className="flex cursor-pointer items-center gap-1.5 font-mono text-[10px] uppercase text-[#F20732] transition-colors hover:text-white disabled:opacity-50"
+                  >
+                    {downloading === d._id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Download className="h-3 w-3" />
+                    )}
+                    Download
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDelete(d)}
+                  className="cursor-pointer font-mono text-[10px] uppercase text-gray-500 transition-colors hover:text-[#F20732]"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))
+        : !showUpload && <p className="py-8 text-center text-sm text-gray-500">No documents uploaded.</p>}
     </div>
   );
 };

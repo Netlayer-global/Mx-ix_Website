@@ -1,39 +1,17 @@
 import { Request, Response } from 'express';
 import fs from 'fs';
-import path from 'path';
 import { CustomerDocument } from '../models/customerDocument.model';
+import { resolveStoredPath, storedFileExists, contentDisposition } from '../services/fileStorage.service';
 
 /**
  * Member-visible documents (LOAs, contracts, policies).
  *
  * Only documents an administrator has explicitly marked `visibility: 'shared'`
  * are exposed here. A document is only offered for download when its bytes
- * actually exist on disk — metadata-only records are listed but flagged
- * `available: false` so the portal can say "contact support" instead of handing
+ * actually exist on disk — legacy metadata-only records are still listed but
+ * flagged `available: false`, so the portal says "on record" instead of handing
  * the member a broken link.
  */
-
-/** Resolve a stored path safely inside the configured upload root. */
-const resolveStoredPath = (storagePath: string): string | null => {
-  if (!storagePath) return null;
-  // Remote object-store keys are not servable from here.
-  if (/^https?:\/\//i.test(storagePath) || /^s3:\/\//i.test(storagePath)) return null;
-
-  const root = path.resolve(process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'));
-  const full = path.resolve(root, storagePath.replace(/^[/\\]+/, ''));
-  // Block traversal outside the upload root.
-  if (!full.startsWith(root + path.sep) && full !== root) return null;
-  return full;
-};
-
-const fileExists = (p: string | null): boolean => {
-  if (!p) return false;
-  try {
-    return fs.statSync(p).isFile();
-  } catch {
-    return false;
-  }
-};
 
 /**
  * GET /api/portal/documents
@@ -51,7 +29,7 @@ export const listDocuments = async (req: Request, res: Response): Promise<void> 
     res.json({
       success: true,
       data: docs.map((d) => {
-        const available = fileExists(resolveStoredPath(d.storagePath));
+        const available = storedFileExists(d.storagePath);
         return {
           _id: d._id,
           id: d._id,
@@ -89,7 +67,7 @@ export const downloadDocument = async (req: Request, res: Response): Promise<voi
     }
 
     const full = resolveStoredPath(doc.storagePath);
-    if (!fileExists(full)) {
+    if (!full || !storedFileExists(doc.storagePath)) {
       res.status(410).json({
         success: false,
         error: 'This document is on record but its file is not available for download. Please contact support.',
@@ -98,8 +76,8 @@ export const downloadDocument = async (req: Request, res: Response): Promise<voi
     }
 
     res.setHeader('Content-Type', doc.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${doc.filename.replace(/"/g, '')}"`);
-    fs.createReadStream(full!).pipe(res);
+    res.setHeader('Content-Disposition', contentDisposition(doc.filename));
+    fs.createReadStream(full).pipe(res);
   } catch (error) {
     console.error('Portal document download error:', error);
     res.status(500).json({ success: false, error: 'Failed to download document.' });

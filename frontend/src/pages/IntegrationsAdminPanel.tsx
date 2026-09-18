@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   Boxes,
   Receipt,
+  Mail,
 } from 'lucide-react';
 import { settingsApi, IntegrationSettings } from '../services/api';
 
@@ -81,6 +82,23 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
   const [cfSupport, setCfSupport] = useState('');
   const [cfCc, setCfCc] = useState('');
 
+  // Outgoing mail (sender identity, SMTP, public link base)
+  const [mlEnabled, setMlEnabled] = useState(false);
+  const [mlHost, setMlHost] = useState('');
+  const [mlPort, setMlPort] = useState('587');
+  const [mlSecure, setMlSecure] = useState(false);
+  const [mlUser, setMlUser] = useState('');
+  const [mlPassword, setMlPassword] = useState('');
+  const [mlHasPassword, setMlHasPassword] = useState(false);
+  const [mlPasswordMask, setMlPasswordMask] = useState('');
+  const [mlFromName, setMlFromName] = useState('MX-IX');
+  const [mlFromEmail, setMlFromEmail] = useState('');
+  const [mlReplyTo, setMlReplyTo] = useState('');
+  const [mlPublicUrl, setMlPublicUrl] = useState('');
+  const [mlEffective, setMlEffective] = useState<{ from: string; publicUrl: string; source: string; configured: boolean } | null>(null);
+  const [mlTestTo, setMlTestTo] = useState('');
+  const [mlTest, setMlTest] = useState<TestState>({ status: 'idle' });
+
   // Zoho country profiles (multi-country billing)
   const [zProfiles, setZProfiles] = useState<any[]>([]);
   const [zpTest, setZpTest] = useState<Record<string, TestState>>({});
@@ -123,6 +141,19 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
     setCfRecipient(data.contactForm?.recipientEmail || '');
     setCfSupport(data.contactForm?.supportEmail || '');
     setCfCc(data.contactForm?.ccEmails || '');
+    setMlEnabled(data.mail?.enabled || false);
+    setMlHost(data.mail?.host || '');
+    setMlPort(String(data.mail?.port || 587));
+    setMlSecure(data.mail?.secure || false);
+    setMlUser(data.mail?.user || '');
+    setMlHasPassword(data.mail?.hasPassword || false);
+    setMlPasswordMask(data.mail?.passwordMask || '');
+    setMlPassword('');
+    setMlFromName(data.mail?.fromName || 'MX-IX');
+    setMlFromEmail(data.mail?.fromEmail || '');
+    setMlReplyTo(data.mail?.replyTo || '');
+    setMlPublicUrl(data.mail?.publicUrl || '');
+    setMlEffective(data.mail?.effective || null);
     setZProfiles((data.zohoProfiles || []).map((p) => ({ ...p, clientSecret: '', refreshToken: '' })));
   };
 
@@ -179,6 +210,18 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
         supportEmail: cfSupport,
         ccEmails: cfCc,
       },
+      mail: {
+        enabled: mlEnabled,
+        host: mlHost,
+        port: Number(mlPort) || 587,
+        secure: mlSecure,
+        user: mlUser,
+        ...(mlPassword ? { password: mlPassword } : {}),
+        fromName: mlFromName,
+        fromEmail: mlFromEmail,
+        replyTo: mlReplyTo,
+        publicUrl: mlPublicUrl,
+      },
       zohoProfiles: zProfiles.map((p) => ({
         key: p.key,
         label: p.label,
@@ -198,6 +241,25 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
       setTimeout(() => setSaved(false), 2500);
     } else {
       setSaveError(res.error || 'Save failed');
+    }
+  };
+
+  /**
+   * Tests the *saved* mail config — SMTP is verified server-side, so unsaved
+   * form changes must be saved first for the test to reflect them.
+   */
+  const handleTestMail = async () => {
+    setMlTest({ status: 'testing' });
+    const res = await settingsApi.testMail(mlTestTo.trim() ? { to: mlTestTo.trim() } : {});
+    if (res.success) {
+      setMlTest({
+        status: 'ok',
+        message: res.data?.sent
+          ? `Test email sent from ${res.data.from}`
+          : `SMTP verified — sending as ${res.data?.from || 'unknown sender'}`,
+      });
+    } else {
+      setMlTest({ status: 'fail', message: res.error || 'Mail test failed' });
     }
   };
 
@@ -602,6 +664,176 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
           </div>
         </section>
 
+        {/* ── EMAIL (outgoing mail) ─────────────────────── */}
+        <section className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+            <div className="flex items-center gap-3">
+              <Mail className="w-5 h-5 text-[#F20732]" />
+              <div>
+                <h2 className="text-lg font-bold">Email</h2>
+                <p className="text-xs text-gray-500">Sender address, SMTP and the link base used in emails</p>
+              </div>
+            </div>
+            <Toggle enabled={mlEnabled} onChange={setMlEnabled} />
+          </div>
+
+          <div className="p-6 space-y-4">
+            {mlEffective && (
+              <div className="rounded-lg border border-gray-700 bg-gray-900/50 p-4">
+                <p className="font-mono text-[10px] uppercase tracking-wider text-gray-500">Currently in use</p>
+                <dl className="mt-2 space-y-1 text-sm">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <dt className="text-gray-500">Sends as</dt>
+                    <dd className="font-mono text-white">{mlEffective.from || '— not configured —'}</dd>
+                  </div>
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <dt className="text-gray-500">Links point to</dt>
+                    <dd className="font-mono text-white">{mlEffective.publicUrl || '— not set —'}</dd>
+                  </div>
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <dt className="text-gray-500">Source</dt>
+                    <dd className="font-mono text-gray-300">
+                      {mlEffective.source === 'settings' ? 'These settings' : 'Environment variables'}
+                      {!mlEffective.configured && ' · SMTP incomplete'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            )}
+
+            <Field
+              label="Public site URL"
+              hint="Base URL used for links in emails (password reset, invitations). Set this so members never receive a server IP."
+            >
+              <input
+                type="url"
+                value={mlPublicUrl}
+                onChange={(e) => setMlPublicUrl(e.target.value)}
+                placeholder="https://mx-ix.com"
+                className="admin-input"
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="From name" hint="Display name recipients see">
+                <input
+                  type="text"
+                  value={mlFromName}
+                  onChange={(e) => setMlFromName(e.target.value)}
+                  placeholder="MX-IX"
+                  className="admin-input"
+                />
+              </Field>
+              <Field label="From email" hint="The sender address, e.g. noreply@mx-ix.com">
+                <input
+                  type="email"
+                  value={mlFromEmail}
+                  onChange={(e) => setMlFromEmail(e.target.value)}
+                  placeholder="noreply@mx-ix.com"
+                  className="admin-input"
+                />
+              </Field>
+            </div>
+
+            <Field label="Reply-To (optional)" hint="Where replies should go, e.g. support@mx-ix.com. Leave blank for none.">
+              <input
+                type="email"
+                value={mlReplyTo}
+                onChange={(e) => setMlReplyTo(e.target.value)}
+                placeholder="support@mx-ix.com"
+                className="admin-input"
+              />
+            </Field>
+
+            <div className="border-t border-gray-700 pt-4">
+              <p className="mb-3 font-mono text-[10px] uppercase tracking-wider text-gray-500">
+                SMTP server {mlEnabled ? '' : '(disabled — environment variables are used)'}
+              </p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="md:col-span-2">
+                  <Field label="Host" hint="e.g. smtp.zoho.in">
+                    <input
+                      type="text"
+                      value={mlHost}
+                      onChange={(e) => setMlHost(e.target.value)}
+                      placeholder="smtp.example.com"
+                      className="admin-input"
+                    />
+                  </Field>
+                </div>
+                <Field label="Port" hint="587 (STARTTLS) or 465 (TLS)">
+                  <input
+                    type="number"
+                    value={mlPort}
+                    onChange={(e) => setMlPort(e.target.value)}
+                    placeholder="587"
+                    className="admin-input"
+                  />
+                </Field>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field label="Username" hint="Usually the full mailbox address">
+                  <input
+                    type="text"
+                    value={mlUser}
+                    onChange={(e) => setMlUser(e.target.value)}
+                    placeholder="noreply@mx-ix.com"
+                    className="admin-input"
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field
+                  label="Password"
+                  hint={mlHasPassword ? `Saved: ${mlPasswordMask} — leave blank to keep` : 'SMTP or app-specific password'}
+                >
+                  <input
+                    type="password"
+                    value={mlPassword}
+                    onChange={(e) => setMlPassword(e.target.value)}
+                    placeholder={mlHasPassword ? '•••••••• (unchanged)' : 'Enter password'}
+                    className="admin-input"
+                    autoComplete="new-password"
+                  />
+                </Field>
+              </div>
+
+              <label className="mt-4 flex cursor-pointer items-center gap-2.5 text-sm text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={mlSecure}
+                  onChange={(e) => setMlSecure(e.target.checked)}
+                  className="h-4 w-4 cursor-pointer accent-[#F20732]"
+                />
+                Use implicit TLS (tick this for port 465)
+              </label>
+            </div>
+
+            <div className="border-t border-gray-700 pt-4">
+              <Field
+                label="Send a test email to (optional)"
+                hint="Save first, then test. Leave blank to only verify the SMTP connection."
+              >
+                <input
+                  type="email"
+                  value={mlTestTo}
+                  onChange={(e) => setMlTestTo(e.target.value)}
+                  placeholder="you@mx-ix.com"
+                  className="admin-input"
+                />
+              </Field>
+              <div className="mt-3">
+                <TestRow state={mlTest} onTest={handleTestMail} onSave={handleSave} saving={saving} saved={saved} />
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Member emails (password reset, alerts, notifications) use this sender and the branded MX-IX template.
+              Copy can still be customised per-flow under System → Templates.
+            </p>
+          </div>
+        </section>
+
         {/* ── CONTACT FORM ──────────────────────────────── */}
         <section className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
@@ -643,8 +875,8 @@ const IntegrationsAdminPanel: React.FC<IntegrationsAdminPanelProps> = ({ embedde
               />
             </Field>
             <p className="text-xs text-gray-500">
-              Delivery uses SMTP (configured via environment). Every submission is also saved, so leads are never lost
-              even if email delivery fails.
+              Delivery uses the SMTP settings in the Email section above. Every submission is also saved, so leads are
+              never lost even if email delivery fails.
             </p>
           </div>
         </section>

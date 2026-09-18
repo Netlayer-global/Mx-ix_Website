@@ -29,12 +29,18 @@ import {
   setCustomerTags,
   listDocuments,
   createDocument,
+  downloadDocument,
   updateDocument,
   deleteDocument,
 } from '../controllers/adminCustomers.controller';
 import { authMiddleware, adminRoleMiddleware } from '../middleware';
+import { makeUploader } from '../services/fileStorage.service';
+import { uploadErrorHandler } from '../middleware/upload.middleware';
 
 const router = Router();
+
+/** Customer documents are written to `uploads/customer-documents/<orgId>/`. */
+const documentUpload = makeUploader('customer-documents', 'id');
 
 // All routes require admin auth
 router.use(authMiddleware);
@@ -79,9 +85,10 @@ router.put('/tags/:tagId', updateTag);
 router.delete('/tags/:tagId', deleteTag);
 router.post('/:id/tags', setCustomerTags);
 
-// Documents
+// Documents (multipart upload → real file on disk)
 router.get('/:id/documents', listDocuments);
-router.post('/:id/documents', createDocument);
+router.post('/:id/documents', documentUpload.single('file'), uploadErrorHandler, createDocument);
+router.get('/:id/documents/:docId/download', downloadDocument);
 router.put('/:id/documents/:docId', updateDocument);
 router.delete('/:id/documents/:docId', deleteDocument);
 

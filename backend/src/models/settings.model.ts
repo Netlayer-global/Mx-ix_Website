@@ -59,6 +59,31 @@ export interface ISettingsDocument extends Document {
     supportEmail: string;
     ccEmails: string;
   };
+  /**
+   * Outgoing mail. Lets an admin change the sender (e.g. noreply@mx-ix.com)
+   * and the public base URL used in emailed links, without a redeploy.
+   */
+  mail: {
+    /** When false, the SMTP environment variables are used instead. */
+    enabled: boolean;
+    host: string;
+    port: number;
+    /** Force implicit TLS. Leave off for STARTTLS on 587. */
+    secure: boolean;
+    user: string;
+    password: string;
+    /** Display name shown to recipients, e.g. "MX-IX". */
+    fromName: string;
+    /** Envelope/header sender, e.g. noreply@mx-ix.com. */
+    fromEmail: string;
+    /** Optional Reply-To, e.g. support@mx-ix.com. */
+    replyTo: string;
+    /**
+     * Public site URL used to build links in emails. Without this, links fall
+     * back to FRONTEND_URL, which on a server is often a bare IP.
+     */
+    publicUrl: string;
+  };
   zohoProfiles: Array<{
     key: string;
     label: string;
@@ -123,6 +148,18 @@ const settingsSchema = new Schema<ISettingsDocument>(
       supportEmail: { type: String, default: '' },
       ccEmails: { type: String, default: '' },
     },
+    mail: {
+      enabled: { type: Boolean, default: false },
+      host: { type: String, default: '' },
+      port: { type: Number, default: 587 },
+      secure: { type: Boolean, default: false },
+      user: { type: String, default: '' },
+      password: { type: String, default: '', select: false },
+      fromName: { type: String, default: 'MX-IX' },
+      fromEmail: { type: String, default: '' },
+      replyTo: { type: String, default: '' },
+      publicUrl: { type: String, default: '' },
+    },
     zohoProfiles: {
       type: [
         new Schema(
@@ -185,7 +222,7 @@ export const normaliseSiteVisibility = (value?: unknown): Record<string, boolean
  * if it doesn't exist yet.
  */
 const SECRET_FIELDS =
-  '+grafana.apiKey +zabbix.apiToken +ixpManager.apiKey +zohoBooks.clientSecret +zohoBooks.refreshToken +peeringDb.apiKey +peeringDb.password';
+  '+grafana.apiKey +zabbix.apiToken +ixpManager.apiKey +zohoBooks.clientSecret +zohoBooks.refreshToken +peeringDb.apiKey +peeringDb.password +mail.password';
 
 export const getSettingsWithSecrets = async () => {
   let doc = await Settings.findOne().select(SECRET_FIELDS);
@@ -411,5 +448,108 @@ export const getEffectiveContactForm = async (): Promise<{
   }
   return { recipientEmail: config.adminEmail, supportEmail: config.adminEmail, ccEmails: [] };
 };
+
+export interface EffectiveMailConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  password: string;
+  /** Ready-to-use `from` header, e.g. `MX-IX <noreply@mx-ix.com>`. */
+  from: string;
+  fromEmail: string;
+  fromName: string;
+  replyTo: string;
+  /** Base URL (no trailing slash) for links inside emails. */
+  publicUrl: string;
+  /** True when a transport can actually be built. */
+  configured: boolean;
+  /** Which source won, for diagnostics in the admin UI. */
+  source: 'settings' | 'env';
+}
+
+/** Compose a `Name <email>` header, tolerating a missing name. */
+const composeFrom = (name: string, email: string): string => {
+  const e = email.trim();
+  const n = name.trim();
+  if (!e) return '';
+  return n ? `${n} <${e}>` : e;
+};
+
+/** Strip a trailing slash so links can be concatenated safely. */
+const trimUrl = (url: string): string => url.trim().replace(/\/+$/, '');
+
+/**
+ * Resolves the effective outgoing-mail config.
+ * Priority: DB settings (when enabled and filled) → environment variables.
+ *
+ * `publicUrl` is resolved independently of `enabled`, because the link base is
+ * useful even when SMTP itself still comes from the environment.
+ */
+export const getEffectiveMail = async (): Promise<EffectiveMailConfig> => {
+  let publicUrl = trimUrl(config.frontendUrl || '');
+
+  try {
+    const doc = await Settings.findOne().select('+mail.password');
+    const m = doc?.mail;
+
+    if (m?.publicUrl?.trim()) publicUrl = trimUrl(m.publicUrl);
+
+    if (m?.enabled && m.host && m.fromEmail) {
+      return {
+        host: m.host.trim(),
+        port: Number(m.port) || 587,
+        secure: m.secure ?? Number(m.port) === 465,
+        user: (m.user || '').trim(),
+        password: m.password || '',
+        from: composeFrom(m.fromName || 'MX-IX', m.fromEmail),
+        fromEmail: m.fromEmail.trim(),
+        fromName: (m.fromName || 'MX-IX').trim(),
+        replyTo: (m.replyTo || '').trim(),
+        publicUrl,
+        configured: true,
+        source: 'settings',
+      };
+    }
+
+    // SMTP from the environment, but sender/reply-to still overridable from the DB.
+    const envFromEmail = (m?.fromEmail || '').trim();
+    const envFromName = (m?.fromName || 'MX-IX').trim();
+    return {
+      host: config.smtpHost,
+      port: config.smtpPort,
+      secure: config.smtpPort === 465,
+      user: config.smtpUser,
+      password: config.smtpPass,
+      from: envFromEmail ? composeFrom(envFromName, envFromEmail) : config.smtpFrom,
+      fromEmail: envFromEmail || config.smtpFrom,
+      fromName: envFromName,
+      replyTo: (m?.replyTo || '').trim(),
+      publicUrl,
+      configured: !!(config.smtpHost && config.smtpUser),
+      source: 'env',
+    };
+  } catch (err) {
+    console.error('[Settings] Failed to read mail config from DB:', err);
+  }
+
+  return {
+    host: config.smtpHost,
+    port: config.smtpPort,
+    secure: config.smtpPort === 465,
+    user: config.smtpUser,
+    password: config.smtpPass,
+    from: config.smtpFrom,
+    fromEmail: config.smtpFrom,
+    fromName: 'MX-IX',
+    replyTo: '',
+    publicUrl,
+    configured: !!(config.smtpHost && config.smtpUser),
+    source: 'env',
+  };
+};
+
+/** Base URL for links inside emails — never a bare IP when publicUrl is set. */
+export const getPublicUrl = async (): Promise<string> => (await getEffectiveMail()).publicUrl;
 
 export default Settings;

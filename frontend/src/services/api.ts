@@ -458,6 +458,27 @@ export interface IntegrationSettings {
     supportEmail: string;
     ccEmails: string;
   };
+  /** Outgoing mail: sender identity, SMTP and the base URL used in email links. */
+  mail: {
+    enabled: boolean;
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    hasPassword: boolean;
+    passwordMask: string;
+    fromName: string;
+    fromEmail: string;
+    replyTo: string;
+    publicUrl: string;
+    /** What is actually in use right now, after environment fallback. */
+    effective: {
+      from: string;
+      publicUrl: string;
+      source: 'settings' | 'env';
+      configured: boolean;
+    };
+  };
   zohoProfiles?: Array<{
     key: string;
     label: string;
@@ -514,6 +535,18 @@ export interface SettingsUpdate {
     supportEmail?: string;
     ccEmails?: string;
   };
+  mail?: {
+    enabled?: boolean;
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user?: string;
+    password?: string;
+    fromName?: string;
+    fromEmail?: string;
+    replyTo?: string;
+    publicUrl?: string;
+  };
   zohoProfiles?: Array<{
     key: string;
     label?: string;
@@ -550,6 +583,12 @@ export const settingsApi = {
     }),
   testZoho: (data: { region?: string; organizationId?: string; clientId?: string; clientSecret?: string; refreshToken?: string; profileKey?: string }) =>
     apiCall<{ connected: boolean; orgName?: string }>('/settings/test/zoho', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  /** Verifies SMTP, and sends a branded test email when `to` is provided. */
+  testMail: (data: { to?: string } = {}) =>
+    apiCall<{ connected: boolean; from?: string; source?: string; sent?: boolean }>('/settings/test/mail', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
@@ -1088,6 +1127,30 @@ export interface PortalDocument {
 
 export const portalDocumentsApi = {
   list: () => portalApiCall<PortalDocument[]>('/portal/documents'),
+  /**
+   * Downloads with the portal token and saves via a blob URL — a plain anchor
+   * can't attach the Authorization header.
+   */
+  download: async (id: string, filename: string): Promise<string | null> => {
+    const token = localStorage.getItem(PORTAL_TOKEN_KEY);
+    const r = await fetch(`${API_BASE}/portal/documents/${encodeURIComponent(id)}/download`, {
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      return body.error || 'Could not download this document.';
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'document';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return null;
+  },
 };
 
 // ── Portal: team management ──
@@ -2707,20 +2770,67 @@ export interface CustomerDocumentItem {
   visibility: 'staff' | 'shared';
   uploadedBy?: string;
   createdAt: string;
+  /** False for legacy records created before file storage existed. */
+  available?: boolean;
 }
+
+/** Upload limits mirrored from the backend so the UI can validate early. */
+export const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;
 
 export const adminDocumentsApi = {
   list: (orgId: string, category?: DocCategory) =>
     apiCall<CustomerDocumentItem[]>(`/admin/customers/${orgId}/documents${category ? `?category=${category}` : ''}`),
-  create: (orgId: string, data: {
-    filename: string;
-    storagePath: string;
-    mimeType?: string;
-    size?: number;
-    category?: DocCategory;
-    description?: string;
-    visibility?: 'staff' | 'shared';
-  }) => apiCall<CustomerDocumentItem>(`/admin/customers/${orgId}/documents`, { method: 'POST', body: JSON.stringify(data) }),
+
+  /** Real multipart upload. Content-Type is left to the browser for the boundary. */
+  upload: async (
+    orgId: string,
+    file: File,
+    meta: { category?: DocCategory; description?: string; visibility?: 'staff' | 'shared' } = {}
+  ): Promise<{ success: boolean; data?: CustomerDocumentItem; error?: string }> => {
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('filename', file.name);
+      if (meta.category) form.append('category', meta.category);
+      if (meta.description) form.append('description', meta.description);
+      if (meta.visibility) form.append('visibility', meta.visibility);
+
+      const token = localStorage.getItem('mx-ix-admin-token');
+      const r = await fetch(`${API_BASE}/admin/customers/${orgId}/documents`, {
+        method: 'POST',
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+        body: form,
+      });
+      const result = await r.json().catch(() => ({}));
+      if (!r.ok) return { success: false, error: result.error || 'Upload failed.' };
+      return result;
+    } catch {
+      return { success: false, error: 'Network error during upload.' };
+    }
+  },
+
+  /** Downloads with the admin token and saves via a blob URL. */
+  download: async (orgId: string, docId: string, filename: string): Promise<string | null> => {
+    const token = localStorage.getItem('mx-ix-admin-token');
+    const r = await fetch(`${API_BASE}/admin/customers/${orgId}/documents/${docId}/download`, {
+      headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    });
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      return body.error || 'Could not download this document.';
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'document';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return null;
+  },
+
   update: (orgId: string, docId: string, data: { description?: string; category?: DocCategory; visibility?: 'staff' | 'shared' }) =>
     apiCall<CustomerDocumentItem>(`/admin/customers/${orgId}/documents/${docId}`, { method: 'PUT', body: JSON.stringify(data) }),
   remove: (orgId: string, docId: string) =>

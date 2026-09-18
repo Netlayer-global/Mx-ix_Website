@@ -7,6 +7,7 @@ import {
   testZabbix,
   testIxpManager,
   testZoho,
+  testMail,
 } from '../controllers/settings.controller';
 import { authMiddleware } from '../middleware';
 
@@ -22,5 +23,6 @@ router.post('/test/grafana', authMiddleware, testGrafana);
 router.post('/test/zabbix', authMiddleware, testZabbix);
 router.post('/test/ixpmanager', authMiddleware, testIxpManager);
 router.post('/test/zoho', authMiddleware, testZoho);
+router.post('/test/mail', authMiddleware, testMail);
 
 export default router;

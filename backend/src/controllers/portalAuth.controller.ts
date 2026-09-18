@@ -6,7 +6,9 @@ import { PortalUser, Organization, Order } from '../models';
 import { IOrganization } from '../models/organization.model';
 import { IPortalUser } from '../models/portalUser.model';
 import config from '../config/environment';
+import { getPublicUrl } from '../models/settings.model';
 import { sendEmail, renderTemplate } from '../services/mailer.service';
+import { renderEmail, escapeHtml } from '../services/emailLayout';
 
 const signToken = (user: IPortalUser): string =>
   jwt.sign(
@@ -259,18 +261,37 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
       user.resetTokenExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
       await user.save();
 
-      const base = config.frontendUrl.replace(/\/$/, '');
+      // The link base comes from the configured public URL so members never
+      // receive a bare server IP. Falls back to FRONTEND_URL.
+      const base = await getPublicUrl();
       const link = `${base}/portal?reset=${token}`;
+      const firstName = (user.name || '').trim().split(/\s+/)[0] || 'there';
+
       const { subject, html } = await renderTemplate(
         'password_reset',
-        { name: user.name || 'there', link, email: user.email },
+        { name: firstName, link, email: user.email, site: base },
         {
           subject: 'Reset your MX-IX portal password',
-          html: `<p>Hi ${user.name},</p>
-         <p>We received a request to reset your MX-IX member portal password. This link is valid for one hour:</p>
-         <p><a href="${link}">${link}</a></p>
-         <p>If you didn't request this, you can safely ignore this email.</p>
-         <p>— MX-IX</p>`,
+          html: renderEmail({
+            eyebrow: 'Member Portal',
+            heading: 'Reset your password',
+            publicUrl: base,
+            body: `<p style="margin:0 0 14px;">Hi ${escapeHtml(firstName)},</p>
+              <p style="margin:0;">We received a request to reset the password for your MX-IX member portal account
+              (<strong style="color:#0A0A0B;">${escapeHtml(user.email)}</strong>). Choose a new password using the
+              button below.</p>`,
+            cta: { label: 'Set a new password', url: link },
+            footnote:
+              'This link expires in one hour and can only be used once. If you did not request a password reset, you can safely ignore this email — your password stays unchanged.',
+          }),
+        },
+        // Applied when an admin has customised the copy in System → Templates.
+        {
+          eyebrow: 'Member Portal',
+          heading: 'Reset your password',
+          publicUrl: base,
+          cta: { label: 'Set a new password', url: link },
+          footnote: 'This link expires in one hour and can only be used once.',
         }
       );
       await sendEmail(user.email, subject, html);

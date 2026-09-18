@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Lock, Building2, CheckCircle2, ShieldCheck, Smartphone, Mail, FileText } from 'lucide-react';
+import { Loader2, Lock, Building2, CheckCircle2, ShieldCheck, Smartphone, Mail, FileText, Download } from 'lucide-react';
 import {
   portalApi,
   portalDocumentsApi,
@@ -432,10 +432,23 @@ const MailingListsSection: React.FC = () => {
  */
 const DocumentsSection: React.FC = () => {
   const [docs, setDocs] = useState<PortalDocument[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     portalDocumentsApi.list().then((res) => setDocs(res.success && res.data ? res.data : []));
   }, []);
+
+  const download = async (d: PortalDocument) => {
+    setBusy(d.id);
+    setError('');
+    const err = await portalDocumentsApi.download(d.id, d.filename);
+    setBusy(null);
+    if (err) setError(err);
+  };
+
+  const fileSize = (bytes: number): string =>
+    bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
   if (docs === null) return null;
 
@@ -459,21 +472,25 @@ const DocumentsSection: React.FC = () => {
               <div className="min-w-0">
                 <p className="font-bold text-sm text-ink truncate">{d.name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {d.category} · {new Date(d.createdAt).toLocaleDateString()}
+                  {d.category}
+                  {d.size ? ` · ${fileSize(d.size)}` : ''} · {new Date(d.createdAt).toLocaleDateString()}
                   {d.description ? ` · ${d.description}` : ''}
                 </p>
               </div>
-              {d.available && d.downloadUrl ? (
-                <a
-                  href={d.downloadUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-label-sm tracking-mono uppercase text-[#F20732] hover:underline"
+              {d.available ? (
+                <button
+                  onClick={() => download(d)}
+                  disabled={busy === d.id}
+                  className="flex shrink-0 cursor-pointer items-center gap-1.5 font-mono text-label-sm uppercase tracking-mono text-[#F20732] transition-colors duration-200 hover:text-ink disabled:opacity-50"
                 >
+                  {busy === d.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
                   Download
-                </a>
+                </button>
               ) : (
-                <span className="font-mono text-label-sm tracking-mono uppercase text-gray-400" title="On record — file not stored for download">
+                <span
+                  className="shrink-0 font-mono text-label-sm uppercase tracking-mono text-gray-400"
+                  title="On record — no file stored for download"
+                >
                   On record
                 </span>
               )}
@@ -481,6 +498,7 @@ const DocumentsSection: React.FC = () => {
           ))}
         </div>
       )}
+      {error && <p className="px-5 pb-4 font-mono text-xs text-[#F20732]">{error}</p>}
     </section>
   );
 };

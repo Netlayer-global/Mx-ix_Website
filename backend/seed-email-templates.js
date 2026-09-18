@@ -15,12 +15,11 @@ const DEFAULTS = [
     key: 'password_reset',
     name: 'Password Reset',
     subject: 'Reset your MX-IX portal password',
+    // Bodies are plain HTML on purpose: the mailer wraps them in the branded
+    // MX-IX shell (logo, heading, CTA button, footer) automatically.
     body:
       '<p>Hi {{name}},</p>' +
-      '<p>We received a request to reset your MX-IX member portal password. This link is valid for one hour:</p>' +
-      '<p><a href="{{link}}">{{link}}</a></p>' +
-      "<p>If you didn't request this, you can safely ignore this email.</p>" +
-      '<p>— MX-IX</p>',
+      '<p>We received a request to reset the password for your MX-IX member portal account ({{email}}).</p>',
     enabled: true,
     variables: ['name', 'link', 'email'],
   },

@@ -1,8 +1,16 @@
 import { Request, Response } from 'express';
-import { Settings, getSettingsWithSecrets, getEffectiveZohoProfile, normaliseSiteVisibility } from '../models/settings.model';
+import {
+  Settings,
+  getSettingsWithSecrets,
+  getEffectiveZohoProfile,
+  normaliseSiteVisibility,
+  getEffectiveMail,
+} from '../models/settings.model';
 import ixpManager from '../services/ixpManager.service';
 import zohoBooks from '../services/zohoBooks.service';
 import { logAudit } from '../services/audit.service';
+import { sendEmail, verifyMailConfig, resetMailTransport } from '../services/mailer.service';
+import { renderEmail } from '../services/emailLayout';
 
 // Mask a secret, revealing only the last 4 chars
 const mask = (secret?: string): string =>
@@ -18,6 +26,7 @@ const isMasked = (val?: string): boolean => !val || val.includes('•');
 export const getSettings = async (_req: Request, res: Response): Promise<void> => {
   try {
     const doc = await getSettingsWithSecrets();
+    const effectiveMail = await getEffectiveMail();
     res.json({
       success: true,
       data: {
@@ -66,6 +75,26 @@ export const getSettings = async (_req: Request, res: Response): Promise<void> =
           recipientEmail: doc.contactForm?.recipientEmail || '',
           supportEmail: doc.contactForm?.supportEmail || '',
           ccEmails: doc.contactForm?.ccEmails || '',
+        },
+        mail: {
+          enabled: doc.mail?.enabled || false,
+          host: doc.mail?.host || '',
+          port: doc.mail?.port || 587,
+          secure: doc.mail?.secure || false,
+          user: doc.mail?.user || '',
+          hasPassword: !!doc.mail?.password,
+          passwordMask: mask(doc.mail?.password || ''),
+          fromName: doc.mail?.fromName || 'MX-IX',
+          fromEmail: doc.mail?.fromEmail || '',
+          replyTo: doc.mail?.replyTo || '',
+          publicUrl: doc.mail?.publicUrl || '',
+          // What is actually in use right now, after env fallback.
+          effective: {
+            from: effectiveMail.from,
+            publicUrl: effectiveMail.publicUrl,
+            source: effectiveMail.source,
+            configured: effectiveMail.configured,
+          },
         },
         zohoProfiles: (doc.zohoProfiles || []).map((p) => ({
           key: p.key,
@@ -165,6 +194,38 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
       if (contactForm.supportEmail !== undefined)
         doc.contactForm.supportEmail = String(contactForm.supportEmail).trim();
       if (contactForm.ccEmails !== undefined) doc.contactForm.ccEmails = String(contactForm.ccEmails).trim();
+    }
+
+    const { mail } = req.body;
+    if (mail) {
+      if (!doc.mail) {
+        (doc as any).mail = {
+          enabled: false,
+          host: '',
+          port: 587,
+          secure: false,
+          user: '',
+          password: '',
+          fromName: 'MX-IX',
+          fromEmail: '',
+          replyTo: '',
+          publicUrl: '',
+        };
+      }
+      if (mail.enabled !== undefined) doc.mail.enabled = !!mail.enabled;
+      if (mail.host !== undefined) doc.mail.host = String(mail.host).trim();
+      if (mail.port !== undefined) doc.mail.port = Number(mail.port) || 587;
+      if (mail.secure !== undefined) doc.mail.secure = !!mail.secure;
+      if (mail.user !== undefined) doc.mail.user = String(mail.user).trim();
+      if (mail.password !== undefined && !isMasked(mail.password)) doc.mail.password = String(mail.password);
+      if (mail.fromName !== undefined) doc.mail.fromName = String(mail.fromName).trim() || 'MX-IX';
+      if (mail.fromEmail !== undefined) doc.mail.fromEmail = String(mail.fromEmail).trim();
+      if (mail.replyTo !== undefined) doc.mail.replyTo = String(mail.replyTo).trim();
+      if (mail.publicUrl !== undefined) doc.mail.publicUrl = String(mail.publicUrl).trim().replace(/\/+$/, '');
+      // Nested subdocument changes need an explicit mark to persist.
+      doc.markModified('mail');
+      // Credentials may have changed — drop the cached SMTP transport.
+      resetMailTransport();
     }
 
     const { peeringDb } = req.body;
@@ -407,4 +468,55 @@ export const testZoho = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export default { getSettings, updateSettings, testGrafana, testZabbix, testIxpManager, testZoho };
+/**
+ * POST /api/settings/test/mail  (admin)   { to?: string }
+ *
+ * Verifies the SMTP connection and, when `to` is given, sends a branded test
+ * email so the admin can confirm the sender address and template rendering.
+ */
+export const testMail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const verify = await verifyMailConfig();
+    if (!verify.ok) {
+      res.json({ success: false, error: verify.error, data: { from: verify.from, source: verify.source } });
+      return;
+    }
+
+    const to = String(req.body?.to || '').trim();
+    if (!to) {
+      res.json({
+        success: true,
+        data: { connected: true, from: verify.from, source: verify.source, sent: false },
+        message: `SMTP connection verified. Mail will be sent from ${verify.from}.`,
+      });
+      return;
+    }
+
+    const publicUrl = (await getEffectiveMail()).publicUrl;
+    const sent = await sendEmail(
+      to,
+      'MX-IX mail configuration test',
+      renderEmail({
+        eyebrow: 'System',
+        heading: 'Mail configuration works',
+        publicUrl,
+        body: `<p style="margin:0 0 14px;">This is a test message from the MX-IX admin panel.</p>
+          <p style="margin:0;">If you can read this, outgoing mail is configured correctly. Member emails such as
+          password resets will be sent from <strong style="color:#0A0A0B;">${verify.from}</strong> and will link to
+          <strong style="color:#0A0A0B;">${publicUrl}</strong>.</p>`,
+        footnote: 'Sent from Admin → Integrations → Email. No action is needed.',
+      })
+    );
+
+    res.json({
+      success: sent,
+      data: { connected: true, from: verify.from, source: verify.source, sent },
+      message: sent ? `Test email sent to ${to}.` : 'SMTP verified but the test email could not be sent.',
+    });
+  } catch (error: any) {
+    console.error('Test mail error:', error);
+    res.json({ success: false, error: error?.message || 'Failed to test mail configuration.' });
+  }
+};
+
+export default { getSettings, updateSettings, testGrafana, testZabbix, testIxpManager, testZoho, testMail };
