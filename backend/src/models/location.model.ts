@@ -80,6 +80,15 @@ const asnSchema = new Schema(
       enum: ['ACTIVE', 'CONNECTING', 'INACTIVE'],
       default: 'ACTIVE',
     },
+    // Directory metadata — flows into the public Member listing on sync.
+    type: {
+      type: String,
+      enum: ['ISP', 'Content', 'Cloud', 'CDN', 'Enterprise', 'Academic', 'Other'],
+      default: 'ISP',
+    },
+    capacity: { type: String, default: '' },
+    since: { type: String, default: '' },
+    website: { type: String, default: '' },
   },
   { _id: false }
 );

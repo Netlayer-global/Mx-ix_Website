@@ -20,6 +20,21 @@ const mapPolicy = (p?: string): 'Open' | 'Selective' | 'Restrictive' => {
   return 'Open';
 };
 
+const MEMBER_TYPES = ['ISP', 'Content', 'Cloud', 'CDN', 'Enterprise', 'Academic', 'Other'] as const;
+type MemberTypeName = (typeof MEMBER_TYPES)[number];
+
+const mapType = (t?: string): MemberTypeName =>
+  (MEMBER_TYPES as readonly string[]).includes(String(t)) ? (t as MemberTypeName) : 'ISP';
+
+/** "2023" or an ISO date -> Date, else null. */
+const parseSince = (s?: string): Date | null => {
+  const raw = String(s || '').trim();
+  if (!raw) return null;
+  if (/^\d{4}$/.test(raw)) return new Date(`${raw}-01-01T00:00:00Z`);
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
 /**
  * Rebuild the Member directory from all locations' connected networks.
  * Each unique ASN across all locations becomes one Member with all the
@@ -29,8 +44,11 @@ export async function syncMembersFromLocations(): Promise<{ created: number; upd
   const locations = await Location.find().lean();
   console.log(`[MemberSync] Found ${locations.length} locations`);
 
-  // Build a map: asn -> { name, policy, locationNames[] }
-  const byAsn = new Map<number, { name: string; policy: string; locationNames: Set<string> }>();
+  // Build a map: asn -> directory metadata + every location it appears in
+  const byAsn = new Map<
+    number,
+    { name: string; policy: string; type?: string; capacity?: string; since?: string; website?: string; locationNames: Set<string> }
+  >();
 
   for (const loc of locations as any[]) {
     // Use the location's display name (falls back to id) for readable member locations
@@ -43,11 +61,20 @@ export async function syncMembersFromLocations(): Promise<{ created: number; upd
       const existing = byAsn.get(asnNum);
       if (existing) {
         existing.locationNames.add(locLabel);
+        // Fill any gaps from this location's entry.
         if (!existing.name && net.name) existing.name = net.name;
+        if (!existing.type && net.type) existing.type = net.type;
+        if (!existing.capacity && net.capacity) existing.capacity = net.capacity;
+        if (!existing.since && net.since) existing.since = net.since;
+        if (!existing.website && net.website) existing.website = net.website;
       } else {
         byAsn.set(asnNum, {
           name: net.name || `AS${asnNum}`,
           policy: net.peeringPolicy || 'Open',
+          type: net.type,
+          capacity: net.capacity,
+          since: net.since,
+          website: net.website,
           locationNames: new Set([locLabel]),
         });
       }
@@ -59,12 +86,17 @@ export async function syncMembersFromLocations(): Promise<{ created: number; upd
 
   for (const [asn, info] of byAsn.entries()) {
     const locNames = Array.from(info.locationNames);
+    const since = parseSince(info.since);
     const existing = await Member.findOne({ asn });
     if (existing) {
       const merged = Array.from(new Set([...(existing.locations || []), ...locNames]));
       existing.locations = merged;
       existing.peeringPolicy = mapPolicy(info.policy);
       if (!existing.name || existing.name === `AS${asn}`) existing.name = info.name;
+      if (info.type) existing.type = mapType(info.type);
+      if (info.capacity) existing.capacity = info.capacity;
+      if (info.website) existing.website = info.website;
+      if (since) existing.joinedDate = since;
       existing.isActive = true;
       await existing.save();
       updated++;
@@ -73,6 +105,10 @@ export async function syncMembersFromLocations(): Promise<{ created: number; upd
         name: info.name,
         asn,
         peeringPolicy: mapPolicy(info.policy),
+        type: mapType(info.type),
+        capacity: info.capacity || '',
+        website: info.website || '',
+        joinedDate: since,
         locations: locNames,
         isActive: true,
       });
@@ -104,6 +140,7 @@ export async function syncMembersForLocation(locationId: string): Promise<{ sync
     if (!asnNum || Number.isNaN(asnNum)) continue;
     asnsInLocation.add(asnNum);
 
+    const since = parseSince(net.since);
     const existing = await Member.findOne({ asn: asnNum });
     if (existing) {
       if (!existing.locations.includes(locLabel)) {
@@ -111,6 +148,10 @@ export async function syncMembersForLocation(locationId: string): Promise<{ sync
       }
       existing.peeringPolicy = mapPolicy(net.peeringPolicy);
       if (!existing.name || existing.name === `AS${asnNum}`) existing.name = net.name || existing.name;
+      if (net.type) existing.type = mapType(net.type);
+      if (net.capacity) existing.capacity = net.capacity;
+      if (net.website) existing.website = net.website;
+      if (since) existing.joinedDate = since;
       existing.isActive = true;
       await existing.save();
     } else {
@@ -118,6 +159,10 @@ export async function syncMembersForLocation(locationId: string): Promise<{ sync
         name: net.name || `AS${asnNum}`,
         asn: asnNum,
         peeringPolicy: mapPolicy(net.peeringPolicy),
+        type: mapType(net.type),
+        capacity: net.capacity || '',
+        website: net.website || '',
+        joinedDate: since,
         locations: [locLabel],
         isActive: true,
       });

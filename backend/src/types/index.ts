@@ -71,6 +71,14 @@ export interface IASN {
   macro: string;
   peeringPolicy: PeeringPolicy;
   status: ASNStatus;
+  /** Network category shown in the public member directory. */
+  type?: string;
+  /** Connected port capacity, e.g. "10G" or "2x100G". */
+  capacity?: string;
+  /** Member since — year or ISO date. */
+  since?: string;
+  /** Public website URL. */
+  website?: string;
 }
 
 export interface IEnabledSite {

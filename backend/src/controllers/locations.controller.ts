@@ -360,7 +360,7 @@ export const getLocationASNs = async (req: Request, res: Response): Promise<void
 export const addASN = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { asnNumber, name, macro, peeringPolicy, status } = req.body;
+    const { asnNumber, name, macro, peeringPolicy, status, type, capacity, since, website } = req.body;
 
     if (!asnNumber || !name) {
       res.status(400).json({
@@ -396,6 +396,10 @@ export const addASN = async (req: Request, res: Response): Promise<void> => {
       macro: macro || '',
       peeringPolicy: peeringPolicy || 'Open',
       status: status || 'ACTIVE',
+      type: type || 'ISP',
+      capacity: capacity || '',
+      since: since || '',
+      website: website || '',
     });
 
     await location.save();
@@ -448,6 +452,10 @@ export const updateASN = async (req: Request, res: Response): Promise<void> => {
     if (updates.macro !== undefined) asn.macro = updates.macro;
     if (updates.peeringPolicy !== undefined) asn.peeringPolicy = updates.peeringPolicy;
     if (updates.status !== undefined) asn.status = updates.status;
+    if (updates.type !== undefined) asn.type = updates.type;
+    if (updates.capacity !== undefined) asn.capacity = updates.capacity;
+    if (updates.since !== undefined) asn.since = updates.since;
+    if (updates.website !== undefined) asn.website = updates.website;
 
     await location.save();
 

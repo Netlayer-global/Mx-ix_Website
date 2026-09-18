@@ -650,39 +650,124 @@ const LocationsAdminPanel: React.FC<LocationsAdminPanelProps> = ({ embedded = fa
                   <div className="flex justify-between items-center bg-slate-700/50 p-2 rounded">
                     <h4 className="text-white font-medium flex items-center gap-2"><Network size={16} /> ASNs</h4>
                     <button
-                      onClick={() => setEditingLocation({ ...editingLocation, asnList: [...(editingLocation.asnList || []), { asnNumber: 0, name: 'New ASN', macro: '', peeringPolicy: 'Open', status: 'ACTIVE' }] })}
+                      onClick={() => setEditingLocation({ ...editingLocation, asnList: [...(editingLocation.asnList || []), { asnNumber: 0, name: 'New ASN', macro: '', peeringPolicy: 'Open', status: 'ACTIVE', type: 'ISP', capacity: '', since: '', website: '' } as any] })}
                       className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-2 py-1 rounded"
                     >+ Add ASN</button>
                   </div>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
-                    {editingLocation.asnList?.map((asn, idx) => (
-                      <div key={idx} className="flex gap-2 items-center bg-slate-900 p-2 rounded text-sm">
-                        <input
-                          type="number"
-                          value={asn.asnNumber || ''}
-                          onChange={e => {
-                            const newAsns = [...editingLocation.asnList];
-                            const val = e.target.value === '' ? 0 : parseInt(e.target.value);
-                            newAsns[idx].asnNumber = isNaN(val) ? 0 : val;
-                            setEditingLocation({ ...editingLocation, asnList: newAsns });
-                          }}
-                          className="w-20 bg-transparent border border-slate-700 rounded px-1"
-                        />
-                        <input
-                          value={asn.name}
-                          onChange={e => {
-                            const newAsns = [...editingLocation.asnList];
-                            newAsns[idx].name = e.target.value;
-                            setEditingLocation({ ...editingLocation, asnList: newAsns });
-                          }}
-                          className="flex-1 bg-transparent border border-slate-700 rounded px-1"
-                        />
-                        <button onClick={() => {
-                          const newAsns = editingLocation.asnList.filter((_, i) => i !== idx);
-                          setEditingLocation({ ...editingLocation, asnList: newAsns });
-                        }} className="text-red-400"><X size={14} /></button>
-                      </div>
-                    ))}
+                  <p className="text-[11px] text-slate-500">
+                    These details flow into the public Member directory when you run “Sync from Locations”.
+                  </p>
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {editingLocation.asnList?.map((asn, idx) => {
+                      const patch = (field: string, value: any) => {
+                        const newAsns = [...editingLocation.asnList];
+                        (newAsns[idx] as any)[field] = value;
+                        setEditingLocation({ ...editingLocation, asnList: newAsns });
+                      };
+                      const inputCls = 'w-full bg-transparent border border-slate-700 rounded px-2 py-1 text-slate-300 placeholder:text-slate-600 focus:border-blue-500 focus:outline-none';
+                      return (
+                        <div key={idx} className="bg-slate-900 p-3 rounded text-sm space-y-2">
+                          {/* Row 1: ASN + name + remove */}
+                          <div className="flex gap-2 items-center">
+                            <input
+                              type="number"
+                              placeholder="ASN"
+                              value={asn.asnNumber || ''}
+                              onChange={e => {
+                                const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                                patch('asnNumber', isNaN(val) ? 0 : val);
+                              }}
+                              className={`${inputCls} w-24`}
+                            />
+                            <input
+                              placeholder="Network name"
+                              value={asn.name}
+                              onChange={e => patch('name', e.target.value)}
+                              className={`${inputCls} flex-1`}
+                            />
+                            <button onClick={() => {
+                              const newAsns = editingLocation.asnList.filter((_, i) => i !== idx);
+                              setEditingLocation({ ...editingLocation, asnList: newAsns });
+                            }} className="text-red-400 shrink-0" title="Remove"><X size={14} /></button>
+                          </div>
+
+                          {/* Row 2: type + capacity */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Type</label>
+                              <select
+                                value={(asn as any).type || 'ISP'}
+                                onChange={e => patch('type', e.target.value)}
+                                className={inputCls}
+                              >
+                                {['ISP', 'Content', 'Cloud', 'CDN', 'Enterprise', 'Academic', 'Other'].map(t => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Capacity</label>
+                              <input
+                                placeholder="e.g. 10G or 2x100G"
+                                value={(asn as any).capacity || ''}
+                                onChange={e => patch('capacity', e.target.value)}
+                                className={inputCls}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 3: since + website */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Since</label>
+                              <input
+                                placeholder="e.g. 2024"
+                                value={(asn as any).since || ''}
+                                onChange={e => patch('since', e.target.value)}
+                                className={inputCls}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Website</label>
+                              <input
+                                placeholder="example.com"
+                                value={(asn as any).website || ''}
+                                onChange={e => patch('website', e.target.value)}
+                                className={inputCls}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 4: policy + status */}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Peering policy</label>
+                              <select
+                                value={asn.peeringPolicy || 'Open'}
+                                onChange={e => patch('peeringPolicy', e.target.value)}
+                                className={inputCls}
+                              >
+                                {['Open', 'Selective', 'Restrictive'].map(p => (
+                                  <option key={p} value={p}>{p}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] uppercase tracking-wider text-slate-500 mb-0.5">Status</label>
+                              <select
+                                value={asn.status || 'ACTIVE'}
+                                onChange={e => patch('status', e.target.value)}
+                                className={inputCls}
+                              >
+                                {['ACTIVE', 'CONNECTING', 'INACTIVE'].map(s => (
+                                  <option key={s} value={s}>{s}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

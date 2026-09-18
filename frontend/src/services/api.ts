@@ -181,6 +181,11 @@ export interface ASN {
   macro: string;
   peeringPolicy: 'Open' | 'Selective' | 'Restrictive' | 'No Policy';
   status: 'ACTIVE' | 'CONNECTING' | 'INACTIVE';
+  /** Directory metadata — synced into the public Member listing. */
+  type?: 'ISP' | 'Content' | 'Cloud' | 'CDN' | 'Enterprise' | 'Academic' | 'Other';
+  capacity?: string;
+  since?: string;
+  website?: string;
 }
 
 export interface EnabledSite {
