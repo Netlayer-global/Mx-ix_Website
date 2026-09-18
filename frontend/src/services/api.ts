@@ -706,6 +706,7 @@ export const membersApi = {
   create: (data: Partial<MemberItem>) => apiCall<MemberItem>('/members', { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: Partial<MemberItem>) => apiCall<MemberItem>(`/members/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id: string) => apiCall<void>(`/members/${id}`, { method: 'DELETE' }),
+  syncFromLocations: () => apiCall<{ created: number; updated: number; total: number }>('/members/sync-locations', { method: 'POST' }),
 };
 
 export const statusApi = {

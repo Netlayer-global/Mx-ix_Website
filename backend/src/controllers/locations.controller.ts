@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Location } from '../models';
+import { syncMembersForLocation } from '../services/memberLocationSync.service';
 
 // Get all locations
 export const getAllLocations = async (req: Request, res: Response): Promise<void> => {
@@ -399,6 +400,9 @@ export const addASN = async (req: Request, res: Response): Promise<void> => {
 
     await location.save();
 
+    // Auto-sync this connected network into the public Member directory
+    await syncMembersForLocation(location.id).catch((e) => console.error('[MemberSync] addASN:', e?.message));
+
     res.status(201).json({
       success: true,
       data: location.asnList,
@@ -447,6 +451,8 @@ export const updateASN = async (req: Request, res: Response): Promise<void> => {
 
     await location.save();
 
+    await syncMembersForLocation(location.id).catch((e) => console.error('[MemberSync] updateASN:', e?.message));
+
     res.json({
       success: true,
       data: location.asnList,
@@ -487,6 +493,8 @@ export const deleteASN = async (req: Request, res: Response): Promise<void> => {
 
     location.asnList.splice(asnIndex, 1);
     await location.save();
+
+    await syncMembersForLocation(location.id).catch((e) => console.error('[MemberSync] deleteASN:', e?.message));
 
     res.json({
       success: true,

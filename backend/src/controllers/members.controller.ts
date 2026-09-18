@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Member } from '../models/member.model';
+import { syncMembersFromLocations } from '../services/memberLocationSync.service';
 
 // GET /api/members (public) — active members
 export const getMembers = async (_req: Request, res: Response): Promise<void> => {
@@ -50,4 +51,18 @@ export const deleteMember = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-export default { getMembers, getAllMembers, createMember, updateMember, deleteMember };
+/**
+ * POST /api/members/sync-locations (admin)
+ * Backfill the Member directory from all locations' connected networks.
+ */
+export const syncFromLocations = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await syncMembersFromLocations();
+    res.json({ success: true, data: result, message: `Synced ${result.total} networks: ${result.created} created, ${result.updated} updated.` });
+  } catch (error) {
+    console.error('Sync members from locations error:', error);
+    res.status(500).json({ success: false, error: 'Failed to sync members from locations' });
+  }
+};
+
+export default { getMembers, getAllMembers, createMember, updateMember, deleteMember, syncFromLocations };

@@ -5,6 +5,7 @@ import {
   createMember,
   updateMember,
   deleteMember,
+  syncFromLocations,
 } from '../controllers/members.controller';
 import { authMiddleware } from '../middleware';
 
@@ -15,6 +16,7 @@ router.get('/', getMembers);
 
 // Admin
 router.get('/all', authMiddleware, getAllMembers);
+router.post('/sync-locations', authMiddleware, syncFromLocations);
 router.post('/', authMiddleware, createMember);
 router.put('/:id', authMiddleware, updateMember);
 router.delete('/:id', authMiddleware, deleteMember);

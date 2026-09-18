@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { ChevronLeft, Loader2, Plus, Trash2, Edit2, Users, Save, X } from 'lucide-react';
+import { ChevronLeft, Loader2, Plus, Trash2, Edit2, Users, Save, X, RefreshCw } from 'lucide-react';
 import { membersApi, MemberItem, MemberType, MemberPolicy } from '../services/api';
 
 interface Props { embedded?: boolean; onBack?: () => void; }
@@ -20,6 +20,8 @@ const MembersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ ...emptyForm });
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
 
   const load = useCallback(async () => {
     const res = await membersApi.adminGetAll();
@@ -28,6 +30,19 @@ const MembersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const runSync = async () => {
+    setSyncing(true);
+    setSyncMsg('');
+    const res = await membersApi.syncFromLocations();
+    setSyncing(false);
+    if (res.success && res.data) {
+      setSyncMsg(`Synced ${res.data.total} networks: ${res.data.created} created, ${res.data.updated} updated.`);
+      load();
+    } else {
+      setSyncMsg(res.error || 'Sync failed');
+    }
+  };
 
   const resetForm = () => { setForm({ ...emptyForm }); setEditingId(null); };
 
@@ -90,7 +105,15 @@ const MembersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
               <p className="text-gray-500 text-sm">Manage the public member directory</p>
             </div>
           </div>
-          <div className="ml-auto text-right">
+          <button
+            onClick={runSync}
+            disabled={syncing}
+            className="ml-auto flex items-center gap-2 px-4 py-2 bg-gray-700 rounded font-bold text-sm hover:bg-gray-600 transition-colors disabled:opacity-50 cursor-pointer"
+            title="Auto-import connected networks from all locations"
+          >
+            {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Sync from Locations
+          </button>
+          <div className="text-right">
             <div className="text-lg font-bold">{members.length}</div>
             <div className="text-[10px] uppercase tracking-wider text-gray-500 font-mono">Members</div>
           </div>
@@ -98,6 +121,9 @@ const MembersAdminPanel: React.FC<Props> = ({ embedded, onBack }) => {
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-8 space-y-8">
+        {syncMsg && (
+          <div className="bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-sm text-gray-300">{syncMsg}</div>
+        )}
         {/* form */}
         <section className="bg-gray-800 border border-gray-700 rounded-lg p-5">
           <div className="flex items-center justify-between mb-4">
