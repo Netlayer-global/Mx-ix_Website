@@ -943,23 +943,53 @@ export interface TrafficSeries {
   outbound: number[];
 }
 
+/**
+ * Traffic figures are `null` when there is nothing measurable — the backend
+ * never substitutes estimated values, so the UI must render an empty state
+ * rather than a number.
+ */
 export interface TrafficStats {
-  peakIn: number;
-  peakOut: number;
-  avgIn: number;
-  avgOut: number;
-  p95In: number;
-  p95Out: number;
-  p95: number;
+  peakIn: number | null;
+  peakOut: number | null;
+  avgIn: number | null;
+  avgOut: number | null;
+  p95In: number | null;
+  p95Out: number | null;
+  p95: number | null;
   unit: string;
+  samples: number;
+}
+
+/** Why a metric is unavailable, so the portal can tell the member what to fix. */
+export type TrafficUnavailableReason =
+  | 'monitoring-unconfigured'
+  | 'port-unmapped'
+  | 'no-samples'
+  | 'flow-collector-unconfigured'
+  | 'asn-missing';
+
+export type TrafficSource = 'zabbix' | 'partial' | 'unavailable' | 'embed' | string;
+
+export interface TrafficPortEntry {
+  id: string;
+  name: string;
+  speed: string;
+  location: string;
+  source: TrafficSource;
+  reason?: TrafficUnavailableReason;
+  stats: TrafficStats;
+  series?: TrafficSeries;
 }
 
 export interface AggregateTraffic {
   range: TrafficRange;
-  source: string;
+  source: TrafficSource;
+  monitoringConfigured: boolean;
+  portsMeasured: number;
+  portsTotal: number;
   series: TrafficSeries;
   stats: TrafficStats;
-  ports: Array<{ id: string; name: string; speed: string; location: string; stats: TrafficStats; series?: TrafficSeries }>;
+  ports: TrafficPortEntry[];
 }
 
 export interface SflowPeer {
@@ -971,7 +1001,8 @@ export interface SflowPeer {
 
 export interface SflowTraffic {
   range: TrafficRange;
-  source: string;
+  source: TrafficSource;
+  reason?: TrafficUnavailableReason;
   unit: string;
   t: number[];
   peers: SflowPeer[];
@@ -981,17 +1012,21 @@ export interface SflowTraffic {
 export interface PortTraffic {
   port: { id: string; name: string; speed: string; location: string };
   range: TrafficRange;
-  source: string;
+  source: TrafficSource;
+  reason?: TrafficUnavailableReason;
   series: TrafficSeries;
   stats: TrafficStats;
 }
 
 export interface PortHealth {
   status: 'up' | 'down' | 'unknown';
+  /** 'provisioning' means the state comes from our records, not a live probe. */
+  statusSource: 'zabbix' | 'provisioning' | 'unavailable';
   latencyMs: number | null;
   lossPct: number | null;
   availabilityPct: number | null;
-  source: string;
+  source: TrafficSource;
+  reason?: TrafficUnavailableReason;
 }
 
 export const portalTrafficApi = {
@@ -1003,6 +1038,28 @@ export const portalTrafficApi = {
     portalApiCall<SflowTraffic>(`/portal/traffic/sflow?range=${range}`),
   getPortHealth: (portId: string) =>
     portalApiCall<PortHealth>(`/portal/ports/${encodeURIComponent(portId)}/health`),
+  /** Batch health for every port — one request instead of one per port. */
+  getAllPortsHealth: () => portalApiCall<Record<string, PortHealth>>('/portal/ports/health'),
+};
+
+// ── Portal: member-visible documents ──
+export interface PortalDocument {
+  id: string;
+  _id: string;
+  name: string;
+  filename: string;
+  category: string;
+  description: string;
+  size: number;
+  mimeType: string;
+  createdAt: string;
+  /** False when only the metadata record exists (no file bytes stored). */
+  available: boolean;
+  downloadUrl?: string;
+}
+
+export const portalDocumentsApi = {
+  list: () => portalApiCall<PortalDocument[]>('/portal/documents'),
 };
 
 // ── Portal: team management ──

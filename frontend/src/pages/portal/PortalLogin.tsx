@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { LogIn, ArrowRight, ArrowLeft, Loader2, CheckCircle2, KeyRound } from 'lucide-react';
-import { portalApi, PortalUserInfo, PortalOrgInfo } from '../../services/api';
+import { LogIn, ArrowRight, ArrowLeft, Loader2, CheckCircle2, KeyRound, Globe } from 'lucide-react';
+import { portalApi, portalPeeringDbAuthApi, PortalUserInfo, PortalOrgInfo } from '../../services/api';
 
 interface Props {
   onAuthenticated: (user: PortalUserInfo, org: PortalOrgInfo) => void;
@@ -38,6 +38,10 @@ const PortalLogin: React.FC<Props> = ({ onAuthenticated, onNavigate }) => {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
 
+  // PeeringDB OAuth (single sign-on for members)
+  const [pdbAvailable, setPdbAvailable] = useState(false);
+  const [pdbBusy, setPdbBusy] = useState(false);
+
   // Detect a password-reset link (?reset=<token>)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -47,6 +51,45 @@ const PortalLogin: React.FC<Props> = ({ onAuthenticated, onNavigate }) => {
       setMode('reset');
     }
   }, []);
+
+  // Complete a PeeringDB OAuth round-trip (?peeringdb_callback=1&code=…)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!params.get('peeringdb_callback') || !code) return;
+
+    setPdbBusy(true);
+    portalPeeringDbAuthApi
+      .callback(code)
+      .then((res) => {
+        window.history.replaceState({}, '', '/portal');
+        if (res.success && res.data) {
+          onAuthenticated(res.data.user, res.data.organization);
+        } else {
+          setError(res.error || 'PeeringDB sign-in failed.');
+        }
+      })
+      .finally(() => setPdbBusy(false));
+  }, [onAuthenticated]);
+
+  // Only offer the button when OAuth is actually configured server-side.
+  useEffect(() => {
+    portalPeeringDbAuthApi.getAuthUrl().then((res) => {
+      setPdbAvailable(!!(res.success && res.data?.configured && res.data.url));
+    });
+  }, []);
+
+  const startPeeringDbLogin = async () => {
+    setError('');
+    setPdbBusy(true);
+    const res = await portalPeeringDbAuthApi.getAuthUrl();
+    if (res.success && res.data?.url) {
+      window.location.href = res.data.url;
+      return;
+    }
+    setPdbBusy(false);
+    setError(res.error || 'PeeringDB sign-in is unavailable right now.');
+  };
 
   const inputClass =
     'w-full bg-white/5 border border-white/15 text-white placeholder-gray-500 px-4 py-3 font-mono text-sm focus:outline-none focus:border-[#F20732] transition-colors';
@@ -223,6 +266,33 @@ const PortalLogin: React.FC<Props> = ({ onAuthenticated, onNavigate }) => {
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : needs2fa ? 'Verify & Sign In' : 'Sign In'}
               </button>
             </form>
+
+            {pdbAvailable && (
+              <div className="mt-5">
+                <div className="flex items-center gap-3" aria-hidden="true">
+                  <span className="h-px flex-1 bg-white/10" />
+                  <span className="font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-gray-500">or</span>
+                  <span className="h-px flex-1 bg-white/10" />
+                </div>
+                <button
+                  type="button"
+                  onClick={startPeeringDbLogin}
+                  disabled={pdbBusy}
+                  className="mt-5 flex w-full cursor-pointer items-center justify-center gap-2 border border-white/20 px-6 py-3.5 font-mono text-label-sm font-bold uppercase tracking-mono text-white transition-colors duration-200 hover:border-white hover:bg-white hover:text-ink disabled:opacity-60"
+                >
+                  {pdbBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Globe className="h-4 w-4" aria-hidden="true" /> Continue with PeeringDB
+                    </>
+                  )}
+                </button>
+                <p className="mt-2.5 text-center text-xs text-gray-500">
+                  Signs you in with your PeeringDB account, matched to your network's ASN.
+                </p>
+              </div>
+            )}
 
             <div className="mt-6 pt-6 border-t border-white/10 text-sm text-gray-500 flex items-center justify-between flex-wrap gap-2">
               <span>

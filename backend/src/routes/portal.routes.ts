@@ -24,7 +24,14 @@ import {
   replyTicket,
   closeTicket,
 } from '../controllers/portalTickets.controller';
-import { getPortTraffic, getAggregateTraffic, getSflowByAsn, getPortHealth } from '../controllers/portalTraffic.controller';
+import {
+  getPortTraffic,
+  getAggregateTraffic,
+  getSflowByAsn,
+  getPortHealth,
+  getAllPortsHealth,
+} from '../controllers/portalTraffic.controller';
+import { listDocuments, downloadDocument } from '../controllers/portalDocuments.controller';
 import {
   getPolicy,
   updatePolicy,
@@ -96,8 +103,13 @@ router.post('/peering/requests/:id/cancel', portalAuthMiddleware, cancelRequest)
 // ── Traffic & analytics ──
 router.get('/traffic', portalAuthMiddleware, getAggregateTraffic);
 router.get('/traffic/sflow', portalAuthMiddleware, getSflowByAsn);
+router.get('/ports/health', portalAuthMiddleware, getAllPortsHealth);
 router.get('/ports/:portId/traffic', portalAuthMiddleware, getPortTraffic);
 router.get('/ports/:portId/health', portalAuthMiddleware, getPortHealth);
+
+// ── Member-visible documents (LOAs, contracts, policies) ──
+router.get('/documents', portalAuthMiddleware, listDocuments);
+router.get('/documents/:id/download', portalAuthMiddleware, downloadDocument);
 
 // ── Team management (portal admins only) ──
 router.get('/team', portalAuthMiddleware, listTeam);

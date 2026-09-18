@@ -1,6 +1,15 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Loader2, BarChart3, Download, FileText, Database, Network as NetIcon } from 'lucide-react';
-import { portalTrafficApi, AggregateTraffic, SflowTraffic, PortHealth, TrafficRange, PortalOrgInfo } from '../../services/api';
+import { Loader2, BarChart3, Download, FileText, Database, Network as NetIcon, Info } from 'lucide-react';
+import {
+  portalTrafficApi,
+  AggregateTraffic,
+  SflowTraffic,
+  PortHealth,
+  TrafficRange,
+  TrafficSource,
+  TrafficUnavailableReason,
+  PortalOrgInfo,
+} from '../../services/api';
 import { downloadCSV } from '../../shared/lg';
 import { PageHeading, EmptyState, Badge } from './ui';
 import TrafficChart from './TrafficChart';
@@ -18,7 +27,45 @@ const RANGES: { id: TrafficRange; label: string }[] = [
   { id: '1y', label: '1Y' },
 ];
 
-const fmt = (mbps: number): string => (mbps >= 1000 ? `${(mbps / 1000).toFixed(2)} Gbps` : `${mbps.toFixed(0)} Mbps`);
+/** Format Mbps. `null` means the value was never measured — never show a zero. */
+const fmt = (mbps: number | null | undefined): string =>
+  mbps == null ? '—' : mbps >= 1000 ? `${(mbps / 1000).toFixed(2)} Gbps` : `${mbps.toFixed(0)} Mbps`;
+
+const SOURCE_LABEL: Record<string, string> = {
+  zabbix: 'Live',
+  partial: 'Partial',
+  unavailable: 'No data',
+  embed: 'Live',
+};
+
+const SOURCE_TONE: Record<string, 'green' | 'amber' | 'gray'> = {
+  zabbix: 'green',
+  partial: 'amber',
+  unavailable: 'gray',
+  embed: 'green',
+};
+
+const REASON_TEXT: Record<TrafficUnavailableReason, string> = {
+  'monitoring-unconfigured': 'Traffic monitoring is not yet enabled for your account.',
+  'port-unmapped': 'This port is not linked to a monitoring source yet.',
+  'no-samples': 'No samples recorded for the selected window.',
+  'flow-collector-unconfigured': 'Per-network flow data is not collected on this exchange yet.',
+  'asn-missing': 'Add your ASN to your account to see per-network traffic.',
+};
+
+const SourceBadge: React.FC<{ source: TrafficSource }> = ({ source }) => (
+  <Badge tone={SOURCE_TONE[source] || 'gray'}>
+    <Database className="w-3 h-3" /> {SOURCE_LABEL[source] || source}
+  </Badge>
+);
+
+/** A calm, honest notice used wherever measurements are missing. */
+const Notice: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <div className="flex items-start gap-2.5 border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+    <Info className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+    <span>{children}</span>
+  </div>
+);
 
 const PortalTraffic: React.FC<Props> = ({ org }) => {
   const [range, setRange] = useState<TrafficRange>('24h');
@@ -47,19 +94,15 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
 
   const load = useCallback(async (r: TrafficRange) => {
     setLoading(true);
-    const [agg, sf] = await Promise.all([portalTrafficApi.getAggregate(r), portalTrafficApi.getSflow(r)]);
-    if (agg.success && agg.data) {
-      setData(agg.data);
-      // Per-port operational health (status/latency/loss/availability), best-effort
-      const entries = await Promise.all(
-        agg.data.ports.map(async (p) => {
-          const h = await portalTrafficApi.getPortHealth(p.id);
-          return [p.id, h.success && h.data ? h.data : null] as const;
-        })
-      );
-      setHealth(Object.fromEntries(entries.filter(([, v]) => v)) as Record<string, PortHealth>);
-    }
+    // One batched health call instead of one request per port.
+    const [agg, sf, hp] = await Promise.all([
+      portalTrafficApi.getAggregate(r),
+      portalTrafficApi.getSflow(r),
+      portalTrafficApi.getAllPortsHealth(),
+    ]);
+    if (agg.success && agg.data) setData(agg.data);
     if (sf.success && sf.data) setSflow(sf.data);
+    setHealth(hp.success && hp.data ? hp.data : {});
     setLoading(false);
   }, []);
 
@@ -135,6 +178,9 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
     }));
   }, [data]);
 
+  /** True only when real samples came back — gates exports and charts. */
+  const hasSeries = !!data && data.series.t.length > 0;
+
   const exportCsv = () => {
     if (!data) return;
     downloadCSV(
@@ -185,12 +231,19 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
         <div class="card"><div class="label">Peak Outbound</div><div class="val">${fmt(s.peakOut)}</div></div>
         <div class="card"><div class="label">Avg Inbound</div><div class="val">${fmt(s.avgIn)}</div></div>
         <div class="card"><div class="label">Avg Outbound</div><div class="val">${fmt(s.avgOut)}</div></div>
-        <div class="card"><div class="label">Data Source</div><div class="val" style="text-transform:capitalize">${data.source}</div></div>
+        <div class="card"><div class="label">Ports Measured</div><div class="val">${data.portsMeasured} / ${data.portsTotal}</div></div>
       </div>
       <h3>Per-port summary</h3>
       <table><thead><tr><th>Port</th><th>Speed</th><th>Location</th><th>95th</th><th>Peak In</th><th>Peak Out</th></tr></thead>
       <tbody>${rows || '<tr><td colspan="6">No ports</td></tr>'}</tbody></table>
-      <div class="foot">MX-IX — Neutral Internet Exchange. This report is generated from monitoring data and provided for informational purposes.</div>
+      ${
+        data.portsMeasured < data.portsTotal
+          ? `<p style="font-size:12px;color:#B45309;margin-top:16px">Note: ${
+              data.portsTotal - data.portsMeasured
+            } of ${data.portsTotal} ports had no measurements for this window and are excluded from the totals above.</p>`
+          : ''
+      }
+      <div class="foot">MX-IX — Neutral Internet Exchange. Figures are measured values only; ports without measurements are excluded rather than estimated.</div>
       <script>window.onload=function(){setTimeout(function(){window.print()},300)}</script>
       </body></html>`);
     win.document.close();
@@ -207,21 +260,19 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
         <div className="flex items-center gap-2 flex-wrap">
           {data && (
             <span className="inline-flex items-center gap-1.5">
-              <Badge tone={data.source === 'zabbix' ? 'green' : data.source === 'mixed' ? 'amber' : 'gray'}>
-                <Database className="w-3 h-3" /> {data.source}
-              </Badge>
+              <SourceBadge source={data.source} />
             </span>
           )}
           <button
             onClick={exportCsv}
-            disabled={!data}
+            disabled={!hasSeries}
             className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 font-mono text-label-sm tracking-mono uppercase text-ink hover:border-ink transition-colors hover-trigger disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5" /> CSV
           </button>
           <button
             onClick={downloadReport}
-            disabled={!data}
+            disabled={!hasSeries}
             className="flex items-center gap-2 px-4 py-2.5 bg-ink text-white font-mono text-label-sm tracking-mono uppercase hover:bg-[#F20732] transition-colors hover-trigger disabled:opacity-50"
           >
             <FileText className="w-3.5 h-3.5" /> Report
@@ -288,6 +339,33 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
         <EmptyState icon={<BarChart3 className="w-10 h-10" />} title="No traffic data" />
       ) : (
         <>
+          {/* Honest status banner — measurements only, nothing estimated */}
+          {data.portsTotal === 0 ? (
+            <div className="mb-6">
+              <Notice>
+                No ports are provisioned on your account yet, so there is nothing to measure. Traffic graphs appear
+                once your first port is live.
+              </Notice>
+            </div>
+          ) : data.source === 'unavailable' ? (
+            <div className="mb-6">
+              <Notice>
+                {data.monitoringConfigured
+                  ? 'No traffic measurements are available for this window. Your ports may not be linked to a monitoring source yet.'
+                  : REASON_TEXT['monitoring-unconfigured']}{' '}
+                Contact <a href="mailto:noc@mx-ix.com" className="text-[#F20732] hover:underline">noc@mx-ix.com</a> if
+                you expect data here.
+              </Notice>
+            </div>
+          ) : data.source === 'partial' ? (
+            <div className="mb-6">
+              <Notice>
+                Showing measurements from {data.portsMeasured} of {data.portsTotal} ports. The remaining ports have no
+                data for this window and are excluded from the totals rather than estimated.
+              </Notice>
+            </div>
+          ) : null}
+
           {/* Stat cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-gray-200 border border-gray-200 mb-6">
             {[
@@ -298,7 +376,13 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
             ].map((m) => (
               <div key={m.label} className="bg-white p-5">
                 <span className="font-mono text-label-sm tracking-label uppercase text-gray-500">{m.label}</span>
-                <div className="text-2xl font-light tracking-tighter text-ink mt-2 tabular-nums">{fmt(m.value)}</div>
+                <div
+                  className={`text-2xl font-light tracking-tighter mt-2 tabular-nums ${
+                    m.value == null ? 'text-gray-400' : 'text-ink'
+                  }`}
+                >
+                  {fmt(m.value)}
+                </div>
               </div>
             ))}
           </div>
@@ -307,11 +391,23 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
           <section className="bg-white border border-gray-200 p-5 sm:p-7 mb-6">
             <div className="mb-5 flex items-center justify-between">
               <h3 className="eyebrow text-ink">Aggregate Throughput</h3>
-              <span className="font-mono text-[9px] uppercase tracking-label text-gray-400">
-                {data.source === 'zabbix' ? 'Live' : 'Simulated'} · {data.series.t.length} samples
-              </span>
+              {hasSeries && (
+                <span className="font-mono text-[9px] uppercase tracking-label text-gray-400">
+                  {data.series.t.length} samples
+                </span>
+              )}
             </div>
-            <TrafficChart series={data.series} unit={data.stats.unit} p95={data.stats.p95} height={300} />
+            {hasSeries ? (
+              <TrafficChart series={data.series} unit={data.stats.unit} p95={data.stats.p95 ?? 0} height={300} />
+            ) : (
+              <div className="py-10">
+                <EmptyState
+                  icon={<BarChart3 className="w-9 h-9" />}
+                  title="No measurements for this window"
+                  hint="Try a wider range, or contact the NOC if your ports should be reporting."
+                />
+              </div>
+            )}
           </section>
 
           {/* Graph 1: Port-wise / Location-wise breakdown */}
@@ -346,31 +442,32 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
           {/* Graph 2: Per-ASN content traffic (sFlow) */}
           <section className="bg-white border border-gray-200 p-5 mb-6">
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-              <h3 className="font-mono text-label tracking-label uppercase text-ink">Traffic by Network (sFlow)</h3>
-              {sflow && (
-                <Badge tone={sflow.source === 'embed' || sflow.source === 'sflow' ? 'green' : 'gray'}>
-                  <Database className="w-3 h-3" /> {sflow.source}
-                </Badge>
-              )}
+              <h3 className="font-mono text-label tracking-label uppercase text-ink">Traffic by Network</h3>
+              {sflow && <SourceBadge source={sflow.source} />}
             </div>
             {sflow?.embedUrl ? (
               <iframe
                 src={sflow.embedUrl}
-                title="Per-ASN sFlow traffic"
+                title="Per-network traffic"
                 className="w-full border border-gray-200 rounded"
                 style={{ height: 320 }}
               />
             ) : sflowLayers.length ? (
               <StackedAreaChart t={sflow!.t} layers={sflowLayers} height={300} />
             ) : (
-              <div className="py-10">
-                <EmptyState icon={<BarChart3 className="w-8 h-8" />} title="No flow data" />
+              <div className="space-y-4 py-4">
+                <Notice>
+                  {sflow?.reason
+                    ? REASON_TEXT[sflow.reason]
+                    : 'Per-network traffic data is not available for your account yet.'}{' '}
+                  A per-network split requires sampled flow data (sFlow/IPFIX) tagged with the peer ASN — interface
+                  counters alone cannot produce it.
+                </Notice>
+                <p className="text-xs text-gray-500 font-mono">
+                  We will enable this panel for your account as soon as flow collection is live on the exchange.
+                </p>
               </div>
             )}
-            <p className="text-xs text-gray-500 mt-3 font-mono">
-              Per-ASN breakdown of which content networks you exchange the most traffic with. Requires sFlow/IPFIX
-              data; shows representative figures until a flow collector is connected.
-            </p>
           </section>
 
           {/* Graph 3: Peer-to-Peer traffic (sFlow embed per-ASN) */}
@@ -406,6 +503,9 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
             <section className="bg-white border border-gray-200 mb-6">
               <div className="px-5 py-4 border-b border-gray-200">
                 <h3 className="font-mono text-label tracking-label uppercase text-ink">Port Health</h3>
+                <p className="mt-1 text-xs text-gray-500">
+                  A dash means the metric is not being collected for that port yet — it is not a zero.
+                </p>
               </div>
               <div className="divide-y divide-gray-100">
                 {data.ports.map((p) => {
@@ -419,15 +519,19 @@ const PortalTraffic: React.FC<Props> = ({ org }) => {
                         <div className="font-mono text-xs text-gray-500">{p.location || '—'} · {p.speed}</div>
                       </div>
                       <div className="flex items-center gap-5 flex-wrap">
-                        <HealthStat label="Status" value={h ? (up ? 'Up' : down ? 'Down' : 'Unknown') : '—'} tone={up ? 'green' : down ? 'red' : 'gray'} />
+                        <HealthStat
+                          label={h?.statusSource === 'provisioning' ? 'Status (records)' : 'Status'}
+                          value={h ? (up ? 'Up' : down ? 'Down' : 'Unknown') : '—'}
+                          tone={up ? 'green' : down ? 'red' : 'gray'}
+                        />
                         <HealthStat label="Latency" value={h?.latencyMs != null ? `${h.latencyMs} ms` : '—'} />
-                        <HealthStat label="Packet Loss" value={h?.lossPct != null ? `${h.lossPct}%` : '—'} tone={h && h.lossPct! > 1 ? 'amber' : 'ink'} />
+                        <HealthStat
+                          label="Packet Loss"
+                          value={h?.lossPct != null ? `${h.lossPct}%` : '—'}
+                          tone={h?.lossPct != null && h.lossPct > 1 ? 'amber' : 'ink'}
+                        />
                         <HealthStat label="Availability" value={h?.availabilityPct != null ? `${h.availabilityPct}%` : '—'} />
-                        {h && (
-                          <Badge tone={h.source === 'zabbix' ? 'green' : 'gray'}>
-                            <Database className="w-3 h-3" /> {h.source}
-                          </Badge>
-                        )}
+                        {h && <SourceBadge source={h.source} />}
                       </div>
                     </div>
                   );

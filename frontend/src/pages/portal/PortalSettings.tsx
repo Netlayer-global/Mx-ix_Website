@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Lock, Building2, CheckCircle2, ShieldCheck, Smartphone } from 'lucide-react';
-import { portalApi, PortalUserInfo, PortalOrgInfo } from '../../services/api';
+import { Loader2, Lock, Building2, CheckCircle2, ShieldCheck, Smartphone, Mail, FileText } from 'lucide-react';
+import {
+  portalApi,
+  portalDocumentsApi,
+  portalMailingListsApi,
+  PortalDocument,
+  MailingListItem,
+  PortalUserInfo,
+  PortalOrgInfo,
+} from '../../services/api';
 import { PageHeading, Badge } from './ui';
 
 interface Props {
@@ -162,6 +170,8 @@ const PortalSettings: React.FC<Props> = ({ user, org }) => {
           </section>
 
           <TwoFactorCard enabled={!!user.twoFactorEnabled} inputClass={inputClass} />
+
+          <MailingListsSection />
 
           <ApiTokensSection />
 
@@ -340,50 +350,137 @@ const ApiTokensSection: React.FC = () => (
 );
 
 /**
- * Member-visible documents (LOAs, contracts, policies shared by the exchange).
- * Fetches from the public portal endpoint — only docs marked memberVisible/shared.
+ * Mailing lists — self-service subscribe/unsubscribe against Mailman.
+ * Hidden entirely when the integration isn't configured, so members never see a
+ * control that can't do anything.
  */
-const DocumentsSection: React.FC = () => {
-  const [docs, setDocs] = useState<any[]>([]);
+const MailingListsSection: React.FC = () => {
+  const [lists, setLists] = useState<MailingListItem[] | null>(null);
+  const [configured, setConfigured] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch('/api/portal/documents', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('mx-ix-portal-token') || ''}` },
-    })
-      .then((r) => r.json())
-      .then((res) => { if (res.success && res.data) setDocs(res.data); })
-      .catch(() => {});
+    portalMailingListsApi.get().then((res) => {
+      if (res.success && res.data) {
+        setConfigured(res.data.configured);
+        setLists(res.data.lists || []);
+      } else {
+        setLists([]);
+      }
+    });
   }, []);
 
-  if (!docs.length) return null;
+  const toggle = async (list: MailingListItem) => {
+    setBusy(list.id);
+    setError('');
+    const res = list.subscribed
+      ? await portalMailingListsApi.unsubscribe(list.id)
+      : await portalMailingListsApi.subscribe(list.id);
+    setBusy(null);
+    if (res.success && res.data) {
+      setLists((prev) => (prev || []).map((l) => (l.id === list.id ? { ...l, subscribed: res.data!.subscribed } : l)));
+    } else {
+      setError(res.error || 'Could not update your subscription.');
+    }
+  };
+
+  if (lists === null) return null;
+  if (!configured || !lists.length) return null;
 
   return (
     <section className="bg-white border border-gray-200 mt-6">
-      <div className="px-5 py-4 border-b border-gray-200">
-        <h3 className="font-mono text-label tracking-label uppercase text-ink">My Documents</h3>
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-200">
+        <Mail className="w-4 h-4 text-[#F20732]" />
+        <h3 className="font-mono text-label tracking-label uppercase text-ink">Mailing Lists</h3>
       </div>
-      <div className="divide-y divide-gray-100">
-        {docs.map((d: any) => (
-          <div key={d._id} className="px-5 py-4 flex items-center justify-between">
+      <div className="px-5 pt-4">
+        <p className="text-sm text-gray-600">
+          Operational notices, maintenance announcements and peering discussion. Subscriptions use your account email.
+        </p>
+      </div>
+      <div className="divide-y divide-gray-100 mt-2">
+        {lists.map((l) => (
+          <div key={l.id} className="px-5 py-4 flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="font-bold text-sm truncate">{d.name || d.filename}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {d.category} · uploaded {new Date(d.createdAt).toLocaleDateString()}
-              </p>
+              <p className="font-bold text-sm text-ink truncate">{l.id}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{l.subscribed ? 'Subscribed' : 'Not subscribed'}</p>
             </div>
-            {d.downloadUrl && (
-              <a
-                href={d.downloadUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-label-sm tracking-mono uppercase text-[#F20732] hover:underline"
-              >
-                Download
-              </a>
-            )}
+            <button
+              onClick={() => toggle(l)}
+              disabled={busy === l.id}
+              className={`cursor-pointer border px-4 py-2 font-mono text-label-sm font-bold uppercase tracking-mono transition-colors duration-200 disabled:opacity-50 ${
+                l.subscribed
+                  ? 'border-gray-300 text-gray-600 hover:border-[#F20732] hover:text-[#F20732]'
+                  : 'border-ink bg-ink text-white hover:bg-[#F20732]'
+              }`}
+            >
+              {busy === l.id ? <Loader2 className="w-4 h-4 animate-spin" /> : l.subscribed ? 'Unsubscribe' : 'Subscribe'}
+            </button>
           </div>
         ))}
       </div>
+      {error && <p className="px-5 pb-4 text-[#F20732] font-mono text-xs">{error}</p>}
+    </section>
+  );
+};
+
+/**
+ * Member-visible documents (LOAs, contracts, policies shared by the exchange).
+ * Only documents staff marked as shared appear here. Records whose file bytes
+ * aren't stored are shown as "on record" rather than as a broken download link.
+ */
+const DocumentsSection: React.FC = () => {
+  const [docs, setDocs] = useState<PortalDocument[] | null>(null);
+
+  useEffect(() => {
+    portalDocumentsApi.list().then((res) => setDocs(res.success && res.data ? res.data : []));
+  }, []);
+
+  if (docs === null) return null;
+
+  return (
+    <section className="bg-white border border-gray-200 mt-6">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-200">
+        <FileText className="w-4 h-4 text-[#F20732]" />
+        <h3 className="font-mono text-label tracking-label uppercase text-ink">My Documents</h3>
+      </div>
+      {docs.length === 0 ? (
+        <div className="px-5 py-6">
+          <p className="text-sm text-gray-600">
+            No documents have been shared with your account yet. LOAs, contracts and signed policies appear here once
+            MX-IX publishes them to you.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-100">
+          {docs.map((d) => (
+            <div key={d.id} className="px-5 py-4 flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-bold text-sm text-ink truncate">{d.name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {d.category} · {new Date(d.createdAt).toLocaleDateString()}
+                  {d.description ? ` · ${d.description}` : ''}
+                </p>
+              </div>
+              {d.available && d.downloadUrl ? (
+                <a
+                  href={d.downloadUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-label-sm tracking-mono uppercase text-[#F20732] hover:underline"
+                >
+                  Download
+                </a>
+              ) : (
+                <span className="font-mono text-label-sm tracking-mono uppercase text-gray-400" title="On record — file not stored for download">
+                  On record
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 };
